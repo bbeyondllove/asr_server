@@ -1,0 +1,75 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0",
+    "max_connections": 500,
+    "read_timeout": 30,
+    "write_timeout": 30,
+    "idle_timeout": 120
+  },
+  "vad": {
+    "model_path": "models/vad/silero_vad.onnx",
+    "threshold": 0.5,
+    "min_silence_duration": 0.1,
+    "min_speech_duration": 0.25,
+    "max_speech_duration": 8.0,
+    "window_size": 512,
+    "buffer_size_seconds": 10.0
+  },
+  "recognition": {
+    "model_path": "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx",
+    "tokens_path": "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt",
+    "language": "auto",
+    "use_inverse_text_normalization": false,
+    "num_threads": 2,
+    "provider": "cpu",
+    "debug": false
+  },
+  "speaker": {
+    "enabled": true,
+    "model_path": "models/speaker/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx",
+    "num_threads": 1,
+    "provider": "cpu",
+    "threshold": 0.6,
+    "data_dir": "data/speaker"
+  },
+  "audio": {
+    "sample_rate": 16000,
+    "feature_dim": 80,
+    "queue_size": 200
+  },
+  "pool": {
+    "instance_mode": "single",
+    "worker_count": 500,
+    "queue_size": 2000,
+    "max_retries": 3,
+    "retry_delay": 100
+  },
+  "vad_pool": {
+    "pool_size": 100,
+    "max_idle": 100,
+    "cleanup_interval": 600
+  },
+  "rate_limit": {
+    "requests_per_second": 200,
+    "burst_size": 400,
+    "max_connections": 500
+  },
+  "response": {
+    "send_mode": "queue",
+    "queue_buffer_size": 500,
+    "fallback_to_sync": true,
+    "max_retry_count": 3,
+    "timeout_ms": 8000
+  },
+  "logging": {
+    "level": "info",
+    "format": "text",
+    "output": "both",
+    "file_path": "logs/app.log",
+    "max_size": 100,
+    "max_backups": 5,
+    "max_age": 30,
+    "compress": true
+  }
+} 

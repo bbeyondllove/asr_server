@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎤 语音识别与声纹识别系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .main-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .status {
+            padding: 15px;
+            margin: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.error {
+            background-color: #ffe6e6;
+            color: #cc0000;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        /* Tab 样式 */
+        .tab-container {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab-nav {
+            display: flex;
+            padding: 0 30px;
+        }
+        .tab-button {
+            padding: 15px 30px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #6c757d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .tab-button:hover {
+            color: #495057;
+            background-color: rgba(0,123,255,0.1);
+        }
+        .tab-button.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background-color: white;
+        }
+        .tab-button .icon {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+        
+        /* Tab 内容 */
+        .tab-content {
+            display: none;
+            padding: 40px;
+            min-height: 600px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* 控件样式 */
+        .controls {
+            margin: 30px 0;
+            text-align: center;
+        }
+        .input-group {
+            margin: 20px 0;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+            text-align: left;
+        }
+        .input-group input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .input-group input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+        button {
+            padding: 12px 24px;
+            margin: 8px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+            min-width: 140px;
+            position: relative;
+            overflow: hidden;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,123,255,0.4);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            box-shadow: 0 4px 15px rgba(220,53,69,0.3);
+        }
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220,53,69,0.4);
+        }
+        .btn-info {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            box-shadow: 0 4px 15px rgba(23,162,184,0.3);
+        }
+        .btn-info:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(23,162,184,0.4);
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+            color: #212529;
+            box-shadow: 0 4px 15px rgba(255,193,7,0.3);
+        }
+        .btn-warning:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255,193,7,0.4);
+        }
+        .recording {
+            background: linear-gradient(135deg, #dc3545, #c82333) !important;
+            color: white !important;
+        }
+        
+        /* 结果区域 */
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            min-height: 150px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+        }
+        .result-item {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #007bff;
+        }
+        .vad-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .vad-active {
+            background-color: #28a745;
+            box-shadow: 0 0 6px rgba(40,167,69,0.5);
+        }
+        .vad-inactive {
+            background-color: #dc3545;
+        }
+        .timer {
+            font-size: 14px;
+            color: #6c757d;
+            margin-left: 10px;
+        }
+        .recording-timer {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        /* 声纹相关样式 */
+        .speaker-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+        }
+        .speaker-section h3 {
+            margin-bottom: 20px;
+            color: #495057;
+            font-size: 1.3em;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .speaker-info {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #2196f3;
+        }
+        .speaker-list {
+            margin-top: 20px;
+        }
+        .speaker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin: 10px 0;
+            background: white;
+            transition: all 0.3s;
+        }
+        .speaker-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .speaker-details {
+            flex-grow: 1;
+        }
+        .speaker-name {
+            font-weight: 600;
+            color: #495057;
+            font-size: 1.1em;
+        }
+        .speaker-meta {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .confidence-high {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .confidence-medium {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .confidence-low {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-wrapper {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            .header {
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 2em;
+            }
+            .tab-content {
+                padding: 20px;
+            }
+            .tab-nav {
+                padding: 0 15px;
+            }
+            .tab-button {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+            button {
+                min-width: 120px;
+                padding: 10px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🎤 语音识别与声纹识别系统</h1>
+            <div id="connectionStatus" class="status disconnected">
+                未连接到服务器
+            </div>
+        </div>
+
+        <!-- Tab 导航 -->
+        <div class="tab-container">
+            <div class="tab-nav">
+                <button class="tab-button active" onclick="switchTab('asr')">
+                    <span class="icon">🗣️</span>实时语音识别
+                </button>
+                <button class="tab-button" onclick="switchTab('speaker')">
+                    <span class="icon">👤</span>声纹识别系统
+                </button>
+            </div>
+        </div>
+
+        <!-- 语音识别 Tab -->
+        <div id="asrTab" class="tab-content active">
+            <div class="controls">
+                <button id="asrRecordBtn" class="btn-primary" disabled>开始录音</button>
+                <button id="clearAsrBtn" class="btn-info">清除结果</button>
+            </div>
+
+            <div class="results" id="asrResults">
+                <div class="result-item">等待开始录音...</div>
+            </div>
+        </div>
+
+        <!-- 声纹识别 Tab -->
+        <div id="speakerTab" class="tab-content">
+            <!-- 声纹注册 -->
+            <div class="speaker-section">
+                <h3>🎙️ 声纹注册</h3>
+                <div class="input-group">
+                    <label for="speakerName">说话人姓名 *</label>
+                    <input type="text" id="speakerName" placeholder="请输入说话人姓名" required>
+                </div>
+                
+                <div class="controls">
+                    <button id="registerBtn" class="btn-primary" disabled>开始录音注册</button>
+                    <span id="registerTimer" class="timer"></span>
+                </div>
+                
+                <div id="registerStatus" class="status" style="display: none;"></div>
+            </div>
+
+            <!-- 声纹识别 -->
+            <div class="speaker-section">
+                <h3>🔍 声纹识别</h3>
+                <div class="controls">
+                    <button id="identifyBtn" class="btn-warning" disabled>开始录音识别</button>
+                    <span id="identifyTimer" class="timer"></span>
+                </div>
+                
+                <div id="identifyStatus" class="status" style="display: none;"></div>
+            </div>
+
+            <!-- 说话人管理 -->
+            <div class="speaker-section">
+                <h3>👥 说话人管理</h3>
+                <div class="controls">
+                    <button id="refreshSpeakersBtn" class="btn-info">刷新列表</button>
+                </div>
+                
+                <div class="speaker-list" id="speakersList">
+                    <div class="result-item">正在加载说话人列表...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let ws = null;
+        let audioContext = null;
+        let isAsrRecording = false;
+        let isSpeakerRecording = false;
+        let speakerRecordingType = null;
+        let recordingStartTime = 0;
+        let recordedAudioData = [];
+        let timerInterval = null;
+
+        // DOM 元素
+        const connectionStatus = document.getElementById('connectionStatus');
+        const asrRecordBtn = document.getElementById('asrRecordBtn');
+        const clearAsrBtn = document.getElementById('clearAsrBtn');
+        const asrResults = document.getElementById('asrResults');
+        
+        const speakerNameInput = document.getElementById('speakerName');
+        const registerBtn = document.getElementById('registerBtn');
+        const identifyBtn = document.getElementById('identifyBtn');
+        const refreshSpeakersBtn = document.getElementById('refreshSpeakersBtn');
+        const registerStatus = document.getElementById('registerStatus');
+        const identifyStatus = document.getElementById('identifyStatus');
+        const registerTimer = document.getElementById('registerTimer');
+        const identifyTimer = document.getElementById('identifyTimer');
+        const speakersList = document.getElementById('speakersList');
+
+                // Tab 切换功能
+        function switchTab(tabName) {
+            // 先停止所有录音活动
+            stopAllRecording();
+
+            // 移除所有 active 类
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            // 添加 active 类到当前 tab
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+
+            // 如果切换到声纹识别tab，刷新说话人列表
+            if (tabName === 'speaker') {
+                loadSpeakers();
+            }
+        }
+
+        // 停止所有录音活动
+        function stopAllRecording() {
+            // 停止ASR录音
+            if (isAsrRecording) {
+                stopRecording();
+                isAsrRecording = false;
+                asrRecordBtn.textContent = '开始录音';
+                asrRecordBtn.classList.remove('recording');
+                console.log('✋ Tab切换：停止ASR录音');
+            }
+
+            // 停止声纹录音
+            if (isSpeakerRecording) {
+                stopRecording();
+                stopTimer();
+                
+                if (speakerRecordingType === 'register') {
+                    registerBtn.textContent = '开始录音注册';
+                    registerBtn.classList.remove('recording');
+                    registerBtn.disabled = false;
+                } else if (speakerRecordingType === 'identify') {
+                    identifyBtn.textContent = '开始录音识别';
+                    identifyBtn.classList.remove('recording');
+                    identifyBtn.disabled = false;
+                }
+                
+                isSpeakerRecording = false;
+                speakerRecordingType = null;
+                recordedAudioData = [];
+                console.log('✋ Tab切换：停止声纹录音');
+            }
+
+            // 更新按钮状态
+            updateButtons();
+        }
+
+        // WebSocket 连接
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log(`🔌 连接WebSocket: ${wsUrl}`);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                showMessage(connectionStatus, '已连接到服务器', 'connected');
+                updateButtons();
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('🔌 WebSocket连接断开：停止所有录音');
+                stopAllRecording();
+                showMessage(connectionStatus, '连接已断开', 'disconnected');
+                updateButtons();
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                showMessage(connectionStatus, '连接错误', 'error');
+            };
+        }
+
+        // 处理 WebSocket 消息
+        function handleWebSocketMessage(data) {
+            console.log('收到WebSocket消息:', data);
+            
+            if (data.type === 'final') {
+                // 识别结果
+                if (data.text && data.text.trim()) {
+                    addAsrResult(data.text);
+                }
+            } else if (data.type === 'error') {
+                // 错误消息
+                console.error('识别错误:', data.message);
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                resultItem.style.color = '#dc3545';
+                resultItem.innerHTML = `❌ 错误: ${data.message}`;
+                asrResults.appendChild(resultItem);
+                asrResults.scrollTop = asrResults.scrollHeight;
+            } else {
+                // 其他类型的消息
+                console.log('未处理的消息类型:', data.type, data);
+            }
+        }
+
+        // 添加 ASR 结果
+        function addAsrResult(text) {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            resultItem.innerHTML = `
+                <span class="vad-status vad-active"></span>
+                <strong>识别结果:</strong> ${text}
+                <span class="timer">${new Date().toLocaleTimeString()}</span>
+            `;
+            
+            if (asrResults.children.length === 1 && asrResults.children[0].textContent === '等待开始录音...') {
+                asrResults.innerHTML = '';
+            }
+            
+            asrResults.appendChild(resultItem);
+            asrResults.scrollTop = asrResults.scrollHeight;
+        }
+
+        // 更新按钮状态
+        function updateButtons() {
+            const connected = ws && ws.readyState === WebSocket.OPEN;
+            asrRecordBtn.disabled = !connected;
+            updateSpeakerButtons();
+        }
+
+        // 更新声纹按钮状态
+        function updateSpeakerButtons() {
+            const nameValid = speakerNameInput.value.trim().length > 0;
+            const connected = ws && ws.readyState === WebSocket.OPEN;
+            
+            // 注册按钮：只有在没有连接或没有输入名字时才禁用，录音时保持可点击
+            registerBtn.disabled = !connected || !nameValid;
+            // 识别按钮：录音时禁用，避免同时录音
+            identifyBtn.disabled = !connected || isSpeakerRecording;
+        }
+
+        // 切换 ASR 录音状态
+        function toggleAsrRecording() {
+            if (!isAsrRecording) {
+                try {
+                    startRecording('asr');
+                    isAsrRecording = true;
+                    asrRecordBtn.textContent = '停止录音';
+                    asrRecordBtn.classList.add('recording');
+                } catch (error) {
+                    console.error('Error starting ASR recording:', error);
+                    showMessage(connectionStatus, '录音启动失败: ' + error.message, 'error');
+                }
+            } else {
+                stopRecording();
+                isAsrRecording = false;
+                asrRecordBtn.textContent = '开始录音';
+                asrRecordBtn.classList.remove('recording');
+            }
+        }
+
+        // 开始声纹录音
+        async function startSpeakerRecording(type) {
+            if (isSpeakerRecording) return;
+            
+            try {
+                await startRecording('speaker');
+                isSpeakerRecording = true;
+                speakerRecordingType = type;
+                recordingStartTime = Date.now();
+                recordedAudioData = [];
+                
+                if (type === 'register') {
+                    registerBtn.textContent = '录音中... (3秒后自动注册)';
+                    registerBtn.classList.add('recording');
+                    startTimer(registerTimer);
+                } else {
+                    identifyBtn.textContent = '录音中... (2秒后自动识别)';
+                    identifyBtn.classList.add('recording');
+                    startTimer(identifyTimer);
+                }
+                
+                updateSpeakerButtons();
+            } catch (error) {
+                console.error('Error starting speaker recording:', error);
+                const statusDiv = type === 'register' ? registerStatus : identifyStatus;
+                showMessage(statusDiv, '录音启动失败: ' + error.message, 'error');
+            }
+        }
+
+        // 停止声纹录音
+        function stopSpeakerRecording() {
+            if (!isSpeakerRecording) return;
+            
+            const recordingDuration = (Date.now() - recordingStartTime) / 1000;
+            const type = speakerRecordingType;
+            
+            stopRecording();
+            stopTimer();
+            
+            if (type === 'register') {
+                registerBtn.classList.remove('recording');
+                if (recordingDuration < 3) {
+                    showMessage(registerStatus, '录音时间太短，请录音至少3秒', 'error');
+                    registerBtn.textContent = '开始录音注册';
+                    registerBtn.disabled = false;
+                } else {
+                    registerBtn.textContent = '注册中...';
+                    registerBtn.disabled = true;
+                    processSpeakerRegistration();
+                }
+            } else {
+                identifyBtn.classList.remove('recording');
+                identifyBtn.textContent = '识别中...';
+                identifyBtn.disabled = true;
+                processSpeakerIdentification();
+            }
+            
+            isSpeakerRecording = false;
+            speakerRecordingType = null;
+            updateSpeakerButtons();
+        }
+
+        // 开始录音
+        async function startRecording(mode) {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                } 
+            });
+            
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            const source = audioContext.createMediaStreamSource(stream);
+            const processor = audioContext.createScriptProcessor(512, 1, 1);
+            
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+            
+            processor.onaudioprocess = (e) => {
+                if (!isAsrRecording && !isSpeakerRecording) return;
+                
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmData = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                    pcmData[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32768)));
+                }
+                
+                if (mode === 'asr' && isAsrRecording && ws && ws.readyState === WebSocket.OPEN) {
+                    const buffer = new ArrayBuffer(pcmData.length * 2);
+                    const view = new DataView(buffer);
+                    for (let i = 0; i < pcmData.length; i++) {
+                        view.setInt16(i * 2, pcmData[i], true);
+                    }
+                    ws.send(buffer);
+                } else if (mode === 'speaker' && isSpeakerRecording) {
+                    // 保存音频数据用于声纹处理
+                    recordedAudioData.push(...inputData);
+                }
+            };
+        }
+
+        // 停止录音
+        function stopRecording() {
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+        }
+
+        // 开始计时器
+        function startTimer(element) {
+            timerInterval = setInterval(() => {
+                const elapsed = (Date.now() - recordingStartTime) / 1000;
+                element.textContent = `${elapsed.toFixed(1)}s`;
+                element.className = 'timer recording-timer';
+                
+                // 如果是注册录音且已录音3秒，自动执行注册
+                if (speakerRecordingType === 'register' && elapsed >= 3.0 && isSpeakerRecording) {
+                    stopSpeakerRecording();
+                }
+                // 如果是识别录音且已录音2秒，自动执行识别
+                if (speakerRecordingType === 'identify' && elapsed >= 2.0 && isSpeakerRecording) {
+                    stopSpeakerRecording();
+                }
+            }, 100);
+        }
+
+        // 停止计时器
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            registerTimer.textContent = '';
+            registerTimer.className = 'timer';
+            identifyTimer.textContent = '';
+            identifyTimer.className = 'timer';
+        }
+
+        // 处理声纹注册
+        async function processSpeakerRegistration() {
+            try {
+                const speakerName = speakerNameInput.value.trim();
+                const speakerId = `speaker_${Date.now()}`;
+                
+                // 转换音频数据为WAV格式
+                const wavBlob = createWavBlob(recordedAudioData, 16000);
+                
+                const formData = new FormData();
+                formData.append('audio', wavBlob, 'recording.wav');
+                formData.append('speaker_id', speakerId);
+                formData.append('speaker_name', speakerName);
+                
+                const response = await fetch('/api/v1/speaker/register', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    showMessage(registerStatus, `注册成功！说话人: ${result.speaker_name}`, 'success');
+                    speakerNameInput.value = '';
+                    loadSpeakers();
+                } else {
+                    const error = await response.json();
+                    showMessage(registerStatus, `注册失败: ${error.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showMessage(registerStatus, `注册失败: ${error.message}`, 'error');
+            } finally {
+                registerBtn.textContent = '开始录音注册';
+                registerBtn.classList.remove('recording');
+                registerBtn.disabled = false;
+                updateSpeakerButtons();
+            }
+        }
+
+        // 处理声纹识别
+        async function processSpeakerIdentification() {
+            try {
+                // 转换音频数据为WAV格式
+                const wavBlob = createWavBlob(recordedAudioData, 16000);
+                
+                const formData = new FormData();
+                formData.append('audio', wavBlob, 'recording.wav');
+                
+                const response = await fetch('/api/v1/speaker/identify', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.identified) {
+                        const confidenceClass = result.confidence > 0.8 ? 'confidence-high' : 
+                                              result.confidence > 0.6 ? 'confidence-medium' : 'confidence-low';
+                        showMessage(identifyStatus, 
+                            `识别成功！说话人: ${result.speaker_name} (置信度: <span class="${confidenceClass}">${(result.confidence * 100).toFixed(1)}%</span>)`, 
+                            'success');
+                    } else {
+                        showMessage(identifyStatus, '未识别到匹配的说话人', 'error');
+                    }
+                } else {
+                    const error = await response.json();
+                    showMessage(identifyStatus, `识别失败: ${error.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Identification error:', error);
+                showMessage(identifyStatus, `识别失败: ${error.message}`, 'error');
+            } finally {
+                identifyBtn.textContent = '开始录音识别';
+                identifyBtn.disabled = false;
+                updateSpeakerButtons();
+            }
+        }
+
+        // 创建WAV格式的Blob
+        function createWavBlob(audioData, sampleRate) {
+            const length = audioData.length;
+            const buffer = new ArrayBuffer(44 + length * 2);
+            const view = new DataView(buffer);
+            
+            // WAV头部
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+            
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + length * 2, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, length * 2, true);
+            
+            // 音频数据
+            let offset = 44;
+            for (let i = 0; i < length; i++) {
+                const sample = Math.max(-1, Math.min(1, audioData[i]));
+                view.setInt16(offset, sample * 0x7FFF, true);
+                offset += 2;
+            }
+            
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+                // 显示消息
+        function showMessage(element, message, type) {
+            element.innerHTML = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+
+            // 连接状态不自动消失，其他状态5秒后消失
+            if (element !== connectionStatus) {
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // 加载说话人列表
+        async function loadSpeakers() {
+            try {
+                const response = await fetch('/api/v1/speaker/list');
+                if (response.ok) {
+                    const data = await response.json();
+                    displaySpeakers(data.speakers);
+                } else {
+                    speakersList.innerHTML = '<div class="result-item error">加载说话人列表失败</div>';
+                }
+            } catch (error) {
+                console.error('Error loading speakers:', error);
+                speakersList.innerHTML = '<div class="result-item error">加载说话人列表失败</div>';
+            }
+        }
+
+        // 显示说话人列表
+        function displaySpeakers(speakers) {
+            if (!speakers || speakers.length === 0) {
+                speakersList.innerHTML = '<div class="result-item">暂无已注册的说话人</div>';
+                return;
+            }
+            
+            const html = speakers.map(speaker => `
+                <div class="speaker-item">
+                    <div class="speaker-details">
+                        <div class="speaker-name">${speaker.name}</div>
+                        <div class="speaker-meta">ID: ${speaker.id} | 样本数: ${speaker.sample_count} | 注册时间: ${new Date(speaker.created_at).toLocaleString()}</div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteSpeaker('${speaker.id}', '${speaker.name}')">删除</button>
+                </div>
+            `).join('');
+            
+            speakersList.innerHTML = html;
+        }
+
+        // 删除说话人
+        async function deleteSpeaker(speakerId, speakerName) {
+            if (!confirm(`确定要删除说话人 "${speakerName}" 吗？`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/speaker/${speakerId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('删除成功');
+                    loadSpeakers();
+                } else {
+                    const error = await response.json();
+                    alert(`删除失败: ${error.error}`);
+                }
+            } catch (error) {
+                console.error('Error deleting speaker:', error);
+                alert(`删除失败: ${error.message}`);
+            }
+        }
+
+        // 清除ASR结果
+        function clearAsrResults() {
+            asrResults.innerHTML = '<div class="result-item">等待开始录音...</div>';
+        }
+
+        // 事件监听
+        asrRecordBtn.addEventListener('click', toggleAsrRecording);
+        clearAsrBtn.addEventListener('click', clearAsrResults);
+        
+        registerBtn.addEventListener('click', () => {
+            if (isSpeakerRecording && speakerRecordingType === 'register') {
+                // 正在录音时点击则停止录音
+                stopSpeakerRecording();
+            } else {
+                startSpeakerRecording('register');
+            }
+        });
+        
+        identifyBtn.addEventListener('click', () => {
+            if (isSpeakerRecording && speakerRecordingType === 'identify') {
+                // 正在录音时点击则停止录音
+                stopSpeakerRecording();
+            } else {
+                startSpeakerRecording('identify');
+            }
+        });
+        
+        refreshSpeakersBtn.addEventListener('click', loadSpeakers);
+        
+        speakerNameInput.addEventListener('input', updateSpeakerButtons);
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', () => {
+            connectWebSocket();
+            loadSpeakers();
+        });
+
+        // 页面关闭前清理资源
+        window.addEventListener('beforeunload', () => {
+            console.log('🚪 页面关闭：清理所有资源');
+            stopAllRecording();
+            if (ws) {
+                ws.close();
+            }
+        });
+
+        // 页面失去焦点时也停止录音（可选）
+        window.addEventListener('blur', () => {
+            // 只在用户明确离开页面时停止录音，避免误触
+            setTimeout(() => {
+                if (!document.hasFocus() && (isAsrRecording || isSpeakerRecording)) {
+                    console.log('👋 页面失焦：停止录音以节省资源');
+                    stopAllRecording();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 
