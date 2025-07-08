@@ -2,10 +2,17 @@
   "server": {
     "port": 8080,
     "host": "0.0.0.0",
-    "max_connections": 500,
-    "read_timeout": 30,
-    "write_timeout": 30,
-    "idle_timeout": 120
+    "read_timeout": 20,
+    "websocket": {
+      "read_timeout": 20,
+      "max_message_size": 2097152,
+      "read_buffer_size": 1024,
+      "write_buffer_size": 1024
+    }
+  },
+  "session": {
+    "send_queue_size": 500,
+    "max_send_errors": 10
   },
   "vad": {
     "model_path": "models/vad/silero_vad.onnx",
@@ -14,21 +21,22 @@
     "min_speech_duration": 0.25,
     "max_speech_duration": 8.0,
     "window_size": 512,
-    "buffer_size_seconds": 10.0
+    "buffer_size_seconds": 10.0,
+    "pool_size": 200
   },
   "recognition": {
     "model_path": "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx",
     "tokens_path": "models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt",
     "language": "auto",
     "use_inverse_text_normalization": false,
-    "num_threads": 2,
+    "num_threads": 16,
     "provider": "cpu",
     "debug": false
   },
   "speaker": {
     "enabled": true,
     "model_path": "models/speaker/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx",
-    "num_threads": 1,
+    "num_threads": 8,
     "provider": "cpu",
     "threshold": 0.6,
     "data_dir": "data/speaker"
@@ -36,31 +44,23 @@
   "audio": {
     "sample_rate": 16000,
     "feature_dim": 80,
-    "queue_size": 200
+    "normalize_factor": 32768.0,
+    "chunk_size": 4096
   },
   "pool": {
     "instance_mode": "single",
     "worker_count": 500,
-    "queue_size": 2000,
-    "max_retries": 3,
-    "retry_delay": 100
-  },
-  "vad_pool": {
-    "pool_size": 100,
-    "max_idle": 100,
-    "cleanup_interval": 600
+    "queue_size": 10000
   },
   "rate_limit": {
-    "requests_per_second": 200,
-    "burst_size": 400,
-    "max_connections": 500
+    "enabled": false,
+    "requests_per_second": 1000,
+    "burst_size": 2000,
+    "max_connections": 2000
   },
   "response": {
     "send_mode": "queue",
-    "queue_buffer_size": 500,
-    "fallback_to_sync": true,
-    "max_retry_count": 3,
-    "timeout_ms": 8000
+    "timeout": 6
   },
   "logging": {
     "level": "info",

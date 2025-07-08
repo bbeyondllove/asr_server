@@ -17,6 +17,7 @@ import (
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
 
 	"asr_server/config"
+	"asr_server/internal/config/hotreload"
 	"asr_server/internal/logger"
 	"asr_server/internal/middleware"
 	"asr_server/internal/pool"
@@ -27,14 +28,21 @@ import (
 )
 
 var (
-	upgrader       = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-	resourcePool   pool.Pool // 使用接口类型，支持StreamPool和ResourcePool
-	vadPool        *pool.VADPool
-	sessionManager *session.Manager
-	rateLimiter    *middleware.RateLimiter
-	speakerManager *speaker.Manager
-	speakerHandler *speaker.Handler
-	ginRouter      *gin.Engine
+	upgrader = websocket.Upgrader{
+		CheckOrigin:       func(r *http.Request) bool { return true },
+		ReadBufferSize:    config.GlobalConfig.Server.WebSocket.ReadBufferSize,
+		WriteBufferSize:   config.GlobalConfig.Server.WebSocket.WriteBufferSize,
+		EnableCompression: true,
+	}
+	// 删除 StreamPool 初始化和 resourcePool 相关逻辑，改为全局唯一 recognizer 实例。
+	vadPool          *pool.VADPool
+	sessionManager   *session.Manager
+	rateLimiter      *middleware.RateLimiter
+	speakerManager   *speaker.Manager
+	speakerHandler   *speaker.Handler
+	ginRouter        *gin.Engine
+	hotReloadMgr     *hotreload.HotReloadManager
+	GlobalRecognizer *sherpa.OfflineRecognizer // 导出全局识别器
 )
 
 // generateSessionID 生成会话ID
@@ -44,18 +52,99 @@ func generateSessionID() string {
 	return hex.EncodeToString(bytes)
 }
 
+// registerHotReloadCallbacks 注册配置热加载回调
+func registerHotReloadCallbacks() {
+	if hotReloadMgr == nil {
+		return
+	}
+
+	// 注册日志级别变更回调
+	hotReloadMgr.RegisterCallback("logging.level", func() {
+		logger.Infof("🔄 Log level changed to: %s", config.GlobalConfig.Logging.Level)
+		// 这里可以添加动态调整日志级别的逻辑
+	})
+
+	// 注册VAD配置变更回调
+	hotReloadMgr.RegisterCallback("vad", func() {
+		logger.Info("🔄 VAD configuration changed")
+		// VAD配置变更时记录日志，但不需要重启VAD池
+	})
+
+	// 注册会话配置变更回调
+	hotReloadMgr.RegisterCallback("session", func() {
+		logger.Info("🔄 Session configuration changed")
+		// 会话配置变更时记录日志
+	})
+
+	// 注册速率限制配置变更回调
+	hotReloadMgr.RegisterCallback("rate_limit", func() {
+		logger.Info("🔄 Rate limit configuration changed")
+		// 速率限制配置变更时记录日志
+	})
+
+	// 注册响应配置变更回调
+	hotReloadMgr.RegisterCallback("response", func() {
+		logger.Info("🔄 Response configuration changed")
+		// 响应配置变更时记录日志
+	})
+
+	logger.Info("✅ Hot reload callbacks registered")
+}
+
+// createRecognizer 用于初始化 sherpa 识别器
+func createRecognizer(cfg *config.Config) (*sherpa.OfflineRecognizer, error) {
+	c := sherpa.OfflineRecognizerConfig{}
+	c.FeatConfig.SampleRate = cfg.Audio.SampleRate
+	c.FeatConfig.FeatureDim = cfg.Audio.FeatureDim
+
+	c.ModelConfig.SenseVoice.Model = cfg.Recognition.ModelPath
+	c.ModelConfig.Tokens = cfg.Recognition.TokensPath
+	c.ModelConfig.NumThreads = cfg.Recognition.NumThreads
+	c.ModelConfig.Debug = 0
+	if cfg.Recognition.Debug {
+		c.ModelConfig.Debug = 1
+	}
+	c.ModelConfig.Provider = cfg.Recognition.Provider
+
+	recognizer := sherpa.NewOfflineRecognizer(&c)
+	if recognizer == nil {
+		return nil, fmt.Errorf("failed to create offline recognizer")
+	}
+
+	return recognizer, nil
+}
+
 // initializeComponents 初始化所有组件
 func initializeComponents() error {
 	logger.Info("🔧 Initializing components...")
 
-	// 初始化Stream资源池 (参考go-sherpa-server架构)
-	logger.WithField("worker_count", config.GlobalConfig.Pool.WorkerCount).Info("🔧 Initializing stream pool...")
-	streamPool, err := pool.NewStreamPool(&config.GlobalConfig, logger.Logger)
+	// 初始化配置热加载管理器
+	logger.Info("🔧 Initializing hot reload manager...")
+	var err error
+	hotReloadMgr, err = hotreload.NewHotReloadManager()
 	if err != nil {
-		logger.WithError(err).Error("Failed to initialize stream pool")
-		return fmt.Errorf("failed to initialize stream pool: %v", err)
+		logger.WithError(err).Error("Failed to initialize hot reload manager")
+		return fmt.Errorf("failed to initialize hot reload manager: %v", err)
 	}
-	resourcePool = streamPool
+
+	// 启动配置文件监听
+	if err := hotReloadMgr.StartWatching("config.json"); err != nil {
+		logger.WithError(err).Warn("Failed to start config file watching, continuing without hot reload")
+	}
+
+	// 检查VAD模型文件是否存在
+	if _, err := os.Stat(config.GlobalConfig.VAD.ModelPath); os.IsNotExist(err) {
+		logger.WithField("model_path", config.GlobalConfig.VAD.ModelPath).Error("VAD model file not found")
+		return fmt.Errorf("VAD model file not found: %s", config.GlobalConfig.VAD.ModelPath)
+	}
+
+	// 初始化全局识别器
+	logger.Info("🔧 Initializing global recognizer...")
+	GlobalRecognizer, err = createRecognizer(&config.GlobalConfig)
+	if err != nil {
+		logger.WithError(err).Error("Failed to initialize global recognizer")
+		return fmt.Errorf("failed to initialize global recognizer: %v", err)
+	}
 
 	// 创建VAD配置
 	vadConfig := &sherpa.VadModelConfig{
@@ -74,13 +163,11 @@ func initializeComponents() error {
 	}
 
 	// 初始化VAD池
-	logger.WithField("pool_size", config.GlobalConfig.VADPool.PoolSize).Info("🔧 Initializing VAD pool...")
+	logger.WithField("pool_size", config.GlobalConfig.VAD.PoolSize).Info("🔧 Initializing VAD pool...")
 	vadPool = pool.NewVADPool(
 		vadConfig,
 		config.GlobalConfig.VAD.BufferSizeSeconds,
-		config.GlobalConfig.VADPool.PoolSize,
-		config.GlobalConfig.VADPool.MaxIdle,
-		time.Duration(config.GlobalConfig.VADPool.CleanupInterval)*time.Second,
+		config.GlobalConfig.VAD.PoolSize,
 	)
 
 	if err := vadPool.Initialize(); err != nil {
@@ -90,7 +177,13 @@ func initializeComponents() error {
 
 	// 初始化会话管理器
 	logger.Info("🔧 Initializing session manager...")
-	sessionManager = session.NewManager(resourcePool, vadPool)
+	if GlobalRecognizer == nil {
+		logger.Fatal("GlobalRecognizer is nil! Please check recognizer initialization and config.")
+	}
+	sessionManager = session.NewManager(GlobalRecognizer, vadPool)
+
+	// 注册配置热加载回调
+	registerHotReloadCallbacks()
 
 	// 初始化速率限制器
 	logger.WithFields(logger.Fields{
@@ -98,6 +191,7 @@ func initializeComponents() error {
 		"max_connections":     config.GlobalConfig.RateLimit.MaxConnections,
 	}).Info("🔧 Initializing rate limiter...")
 	rateLimiter = middleware.NewRateLimiter(
+		config.GlobalConfig.RateLimit.Enabled,
 		config.GlobalConfig.RateLimit.RequestsPerSecond,
 		config.GlobalConfig.RateLimit.BurstSize,
 		config.GlobalConfig.RateLimit.MaxConnections,
@@ -125,7 +219,7 @@ func initializeSpeakerModule() error {
 	}
 
 	// 检查模型文件是否存在
-	if _, err := os.Stat(config.GlobalConfig.Speaker.ModelPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(config.GlobalConfig.Speaker.ModelPath); os.IsNotExist(statErr) {
 		logger.WithField("model_path", config.GlobalConfig.Speaker.ModelPath).
 			Warn("Speaker model file not found, speaker recognition disabled")
 		return fmt.Errorf("speaker model file not found: %s", config.GlobalConfig.Speaker.ModelPath)
@@ -167,6 +261,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 设置WebSocket连接超时
+	wsConfig := config.GlobalConfig.Server.WebSocket
+
+	// 设置读取超时
+	if wsConfig.ReadTimeout > 0 {
+		conn.SetReadDeadline(time.Now().Add(time.Duration(wsConfig.ReadTimeout) * time.Second))
+	}
+
 	// 生成会话ID
 	sessionID := generateSessionID()
 
@@ -189,11 +291,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	logger.WithField("session_id", sessionID).Info("New WebSocket connection established")
 
 	// 发送连接确认
-	conn.WriteJSON(map[string]interface{}{
-		"type":       "connection",
-		"message":    "WebSocket connected, ready for audio",
-		"session_id": sessionID,
-	})
+	if session, exists := sessionManager.GetSession(sessionID); exists {
+		select {
+		case session.SendQueue <- map[string]interface{}{
+			"type":       "connection",
+			"message":    "WebSocket connected, ready for audio",
+			"session_id": sessionID,
+		}:
+		default:
+			logger.Warnf("Session %s send queue is full, dropping connection confirmation", sessionID)
+		}
+	}
 
 	// 处理消息
 	for {
@@ -207,6 +315,21 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		// 每次收到消息都刷新读超时
+		if wsConfig.ReadTimeout > 0 {
+			conn.SetReadDeadline(time.Now().Add(time.Duration(wsConfig.ReadTimeout) * time.Second))
+		}
+
+		// 检查消息大小
+		if wsConfig.MaxMessageSize > 0 && len(message) > wsConfig.MaxMessageSize {
+			logger.WithFields(logger.Fields{
+				"session_id":   sessionID,
+				"message_size": len(message),
+				"max_size":     wsConfig.MaxMessageSize,
+			}).Warn("Message too large, closing connection")
+			break
+		}
+
 		// 处理音频数据
 		if len(message) > 0 {
 			if err := sessionManager.ProcessAudioData(sessionID, message); err != nil {
@@ -214,11 +337,17 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					"session_id": sessionID,
 					"error":      err,
 				}).Error("Failed to process audio data")
-				// 发送错误消息
-				conn.WriteJSON(map[string]interface{}{
-					"type":    "error",
-					"message": err.Error(),
-				})
+				// 通过session的SendQueue发送错误消息
+				if session, exists := sessionManager.GetSession(sessionID); exists {
+					select {
+					case session.SendQueue <- map[string]interface{}{
+						"type":    "error",
+						"message": err.Error(),
+					}:
+					default:
+						logger.Warnf("Session %s send queue is full, dropping error message", sessionID)
+					}
+				}
 			}
 		}
 	}
@@ -228,18 +357,56 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	poolStats := resourcePool.GetStats()
-	vadPoolStats := vadPool.GetStats()
-	sessionStats := sessionManager.GetStats()
-	rateLimiterStats := rateLimiter.GetStats()
+	// 检查各组件状态
+	components := make(map[string]interface{})
+
+	// 检查VAD池
+	if vadPool != nil {
+		vadPoolStats := vadPool.GetStats()
+		components["vad_pool"] = vadPoolStats
+	} else {
+		components["vad_pool"] = map[string]interface{}{"status": "not_initialized"}
+	}
+
+	// 检查会话管理器
+	if sessionManager != nil {
+		sessionStats := sessionManager.GetStats()
+		components["sessions"] = sessionStats
+	} else {
+		components["sessions"] = map[string]interface{}{"status": "not_initialized"}
+	}
+
+	// 检查限流器
+	if rateLimiter != nil {
+		rateLimiterStats := rateLimiter.GetStats()
+		components["rate_limit"] = rateLimiterStats
+	} else {
+		components["rate_limit"] = map[string]interface{}{"status": "not_initialized"}
+	}
+
+	// 检查声纹管理器
+	if speakerManager != nil {
+		speakerStats := speakerManager.GetStats()
+		components["speaker"] = speakerStats
+	} else {
+		components["speaker"] = map[string]interface{}{"status": "disabled"}
+	}
+
+	// 确定整体健康状态
+	status := "healthy"
+	if vadPool == nil || sessionManager == nil || rateLimiter == nil {
+		status = "initializing"
+	}
 
 	health := map[string]interface{}{
-		"status":     "healthy",
+		"status":     status,
 		"timestamp":  time.Now().Format(time.RFC3339),
-		"pool":       poolStats,
-		"vad_pool":   vadPoolStats,
-		"sessions":   sessionStats,
-		"rate_limit": rateLimiterStats,
+		"components": components,
+	}
+
+	// 如果正在初始化，返回503状态码
+	if status == "initializing" {
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
 	json.NewEncoder(w).Encode(health)
@@ -250,7 +417,6 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	stats := map[string]interface{}{
-		"pool":       resourcePool.GetStats(),
 		"vad_pool":   vadPool.GetStats(),
 		"sessions":   sessionManager.GetStats(),
 		"rate_limit": rateLimiter.GetStats(),
@@ -309,9 +475,6 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 		"uptime":    time.Since(time.Now().Add(-time.Hour)), // 简化的运行时间
 	}
 
-	if resourcePool != nil {
-		metrics["pool"] = resourcePool.GetStats()
-	}
 	if vadPool != nil {
 		metrics["vad_pool"] = vadPool.GetStats()
 	}
@@ -328,6 +491,63 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(metrics)
 }
 
+// configHandler 配置管理
+func configHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case "GET":
+		// 获取当前配置
+		config := map[string]interface{}{
+			"server":      config.GlobalConfig.Server,
+			"session":     config.GlobalConfig.Session,
+			"vad":         config.GlobalConfig.VAD,
+			"recognition": config.GlobalConfig.Recognition,
+			"audio":       config.GlobalConfig.Audio,
+			"pool":        config.GlobalConfig.Pool,
+			"vad_pool":    config.GlobalConfig.VAD,
+			"rate_limit":  config.GlobalConfig.RateLimit,
+			"response":    config.GlobalConfig.Response,
+			"speaker":     config.GlobalConfig.Speaker,
+			"logging":     config.GlobalConfig.Logging,
+		}
+		json.NewEncoder(w).Encode(config)
+
+	case "POST":
+		// 更新配置
+		var updateData map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		updated := make(map[string]interface{})
+		for key, value := range updateData {
+			if key == "server.port" || key == "server.host" {
+				logger.Warnf("Attempted to update restricted config key: %s", key)
+				continue
+			}
+			// 更新配置
+			if hotReloadMgr != nil {
+				if err := hotReloadMgr.SetConfigValue(key, value); err != nil {
+					logger.Errorf("Failed to update config key %s: %v", key, err)
+					continue
+				}
+				updated[key] = value
+			}
+		}
+
+		response := map[string]interface{}{
+			"message": "Configuration updated",
+			"updated": updated,
+		}
+		json.NewEncoder(w).Encode(response)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 // gracefulShutdown 优雅关闭
 func gracefulShutdown(server *http.Server) {
 	// 等待中断信号
@@ -337,34 +557,48 @@ func gracefulShutdown(server *http.Server) {
 
 	logger.Info("🛑 Shutting down server...")
 
-	// 设置关闭超时
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// 关闭HTTP服务器
-	if err := server.Shutdown(ctx); err != nil {
-		logger.WithError(err).Error("Server forced to shutdown")
+	// 停止热加载管理器
+	if hotReloadMgr != nil {
+		logger.Info("🛑 Stopping hot reload manager...")
+		hotReloadMgr.Stop()
 	}
 
-	// 关闭组件
+	// 关闭会话管理器
 	if sessionManager != nil {
 		logger.Info("🛑 Shutting down session manager...")
 		sessionManager.Shutdown()
 	}
+
+	// 关闭VAD池
 	if vadPool != nil {
 		logger.Info("🛑 Shutting down VAD pool...")
 		vadPool.Shutdown()
 	}
-	if resourcePool != nil {
-		logger.Info("🛑 Shutting down resource pool...")
-		resourcePool.Shutdown()
-	}
+
+	// 关闭声纹管理器
 	if speakerManager != nil {
 		logger.Info("🛑 Shutting down speaker manager...")
 		speakerManager.Close()
 	}
 
-	logger.Info("✅ Server shutdown complete")
+	// 删除全局识别器
+	if GlobalRecognizer != nil {
+		logger.Info("🛑 Shutting down global recognizer...")
+		sherpa.DeleteOfflineRecognizer(GlobalRecognizer)
+	}
+
+	// 创建关闭上下文
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+
+	// 关闭HTTP服务器
+	if err := server.Shutdown(ctx); err != nil {
+		logger.WithError(err).Error("Server forced to shutdown")
+	} else {
+		logger.Info("✅ Server exited")
+	}
+
+	os.Exit(0)
 }
 
 func main() {
@@ -413,11 +647,7 @@ func main() {
 	logger.Info("✅ Configuration loaded")
 	config.PrintConfig()
 
-	// 监听配置文件变化
-	config.WatchConfig(func() {
-		logger.Info("🔄 Configuration reloaded")
-		config.PrintConfig()
-	})
+	// 配置文件监听已由HotReloadManager处理
 
 	// 初始化组件
 	if err := initializeComponents(); err != nil {
@@ -442,6 +672,9 @@ func main() {
 	ginRouter.GET("/ws", gin.WrapF(handleWebSocket))
 	ginRouter.GET("/health", gin.WrapF(healthHandler))
 	ginRouter.GET("/stats", gin.WrapF(statsHandler))
+	ginRouter.GET("/info", gin.WrapF(infoHandler))
+	ginRouter.GET("/metrics", gin.WrapF(metricsHandler))
+	ginRouter.Any("/config", gin.WrapF(configHandler))
 
 	// 静态文件服务
 	ginRouter.Static("/static", "./static")
@@ -458,11 +691,9 @@ func main() {
 
 	// 创建HTTP服务器
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port),
-		Handler:      handler,
-		ReadTimeout:  time.Duration(config.GlobalConfig.Server.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(config.GlobalConfig.Server.WriteTimeout) * time.Second,
-		IdleTimeout:  time.Duration(config.GlobalConfig.Server.IdleTimeout) * time.Second,
+		Addr:        fmt.Sprintf("%s:%d", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port),
+		Handler:     handler,
+		ReadTimeout: time.Duration(config.GlobalConfig.Server.ReadTimeout) * time.Second,
 	}
 
 	// 启动优雅关闭协程

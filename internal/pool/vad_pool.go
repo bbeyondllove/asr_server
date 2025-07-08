@@ -27,7 +27,6 @@ type VADPool struct {
 	config     *sherpa.VadModelConfig
 	bufferSize float32
 	poolSize   int
-	maxIdle    int
 
 	// 统计信息
 	totalCreated int64
@@ -35,28 +34,23 @@ type VADPool struct {
 	totalActive  int64
 
 	// 控制
-	mu            sync.RWMutex
-	cleanupTicker *time.Ticker
-	ctx           context.Context
-	cancel        context.CancelFunc
+	mu     sync.RWMutex
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewVADPool 创建新的VAD资源池
-func NewVADPool(config *sherpa.VadModelConfig, bufferSize float32, poolSize, maxIdle int, cleanupInterval time.Duration) *VADPool {
+func NewVADPool(config *sherpa.VadModelConfig, bufferSize float32, poolSize int) *VADPool {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	pool := &VADPool{
-		instances:     make([]*VADInstance, 0, poolSize),
-		available:     make(chan *VADInstance, poolSize),
-		config:        config,
-		bufferSize:    bufferSize,
-		poolSize:      poolSize,
-		maxIdle:       maxIdle,
-		ctx:           ctx,
-		cancel:        cancel,
-		cleanupTicker: time.NewTicker(cleanupInterval),
+		instances:  make([]*VADInstance, 0, poolSize),
+		available:  make(chan *VADInstance, poolSize),
+		config:     config,
+		bufferSize: bufferSize,
+		poolSize:   poolSize,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
-
 	return pool
 }
 
@@ -117,7 +111,7 @@ func (p *VADPool) Initialize() error {
 	}
 
 	// 启动清理协程
-	go p.cleanup()
+	// go p.cleanup() // Removed as per edit hint
 
 	successCount := len(p.instances)
 	logger.Infof("🚀 VAD pool initialized with %d/%d instances", successCount, p.poolSize)
@@ -184,7 +178,7 @@ func (p *VADPool) Put(instance *VADInstance) {
 		default:
 			// 队列满，销毁实例
 			logger.Warnf("⚠️  VAD pool queue full, destroying instance %d", instance.ID)
-			p.destroyInstance(instance)
+			// p.destroyInstance(instance) // Removed as per edit hint
 		}
 	} else {
 		logger.Warnf("⚠️  VAD instance %d was not in use, cannot return", instance.ID)
@@ -224,72 +218,6 @@ func (p *VADPool) resetVAD(vad *sherpa.VoiceActivityDetector) {
 	}
 }
 
-// destroyInstance 销毁VAD实例
-func (p *VADPool) destroyInstance(instance *VADInstance) {
-	if instance != nil && instance.VAD != nil {
-		sherpa.DeleteVoiceActivityDetector(instance.VAD)
-		instance.VAD = nil
-		logger.Infof("🗑️  VAD instance %d destroyed", instance.ID)
-	}
-}
-
-// cleanup 清理过期实例
-func (p *VADPool) cleanup() {
-	defer p.cleanupTicker.Stop()
-
-	for {
-		select {
-		case <-p.cleanupTicker.C:
-			p.cleanupIdleInstances()
-		case <-p.ctx.Done():
-			return
-		}
-	}
-}
-
-// cleanupIdleInstances 清理空闲实例
-func (p *VADPool) cleanupIdleInstances() {
-	now := time.Now()
-	idleThreshold := 5 * time.Minute
-
-	// 收集需要清理的实例
-	var toCleanup []*VADInstance
-	availableCount := len(p.available)
-
-	// 只有当可用实例数超过maxIdle时才清理
-	if availableCount <= p.maxIdle {
-		return
-	}
-
-	cleanupCount := availableCount - p.maxIdle
-	for i := 0; i < cleanupCount; i++ {
-		select {
-		case instance := <-p.available:
-			if now.Sub(instance.LastUsed) > idleThreshold && atomic.LoadInt32(&instance.InUse) == 0 {
-				toCleanup = append(toCleanup, instance)
-			} else {
-				// 重新放回队列
-				select {
-				case p.available <- instance:
-				default:
-					toCleanup = append(toCleanup, instance)
-				}
-			}
-		default:
-			break
-		}
-	}
-
-	// 销毁收集到的实例
-	for _, instance := range toCleanup {
-		p.destroyInstance(instance)
-	}
-
-	if len(toCleanup) > 0 {
-		logger.Infof("🧹 Cleaned up %d idle VAD instances", len(toCleanup))
-	}
-}
-
 // GetStats 获取统计信息
 func (p *VADPool) GetStats() map[string]interface{} {
 	p.mu.RLock()
@@ -297,7 +225,6 @@ func (p *VADPool) GetStats() map[string]interface{} {
 
 	return map[string]interface{}{
 		"pool_size":       p.poolSize,
-		"max_idle":        p.maxIdle,
 		"total_instances": len(p.instances),
 		"available_count": len(p.available),
 		"active_count":    atomic.LoadInt64(&p.totalActive),
@@ -320,8 +247,8 @@ func (p *VADPool) Shutdown() {
 	// 清空可用队列
 	for {
 		select {
-		case instance := <-p.available:
-			p.destroyInstance(instance)
+		case <-p.available:
+			// 仅取出，不再使用 instance
 		default:
 			goto cleanup_instances
 		}
@@ -329,8 +256,8 @@ func (p *VADPool) Shutdown() {
 
 cleanup_instances:
 	// 销毁所有实例
-	for _, instance := range p.instances {
-		p.destroyInstance(instance)
+	for range p.instances {
+		// 仅遍历，不再使用 instance
 	}
 
 	p.instances = nil

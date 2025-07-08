@@ -1,6 +1,7 @@
 package speaker
 
 import (
+	"asr_server/config"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -253,7 +254,7 @@ func (h *Handler) parseAudioFile(file multipart.File, header *multipart.FileHead
 	samples := make([]float32, len(buffer.Data))
 	for i, sample := range buffer.Data {
 		// 将int转换为float32，范围[-1.0, 1.0]
-		samples[i] = float32(sample) / 32768.0
+		samples[i] = float32(sample) / config.GlobalConfig.Audio.NormalizeFactor
 	}
 
 	// 如果是立体声，转换为单声道（取平均值）

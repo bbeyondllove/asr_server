@@ -1,6 +1,4 @@
-go.sum
-vad-asr-sense-voice
 *.onnx
 *.tar.bz2
 sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
-*.wav 
+logs

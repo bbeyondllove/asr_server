@@ -11,6 +11,7 @@ import (
 
 // RateLimiter 速率限制器
 type RateLimiter struct {
+	enabled   bool
 	limiters  map[string]*rate.Limiter
 	mu        sync.RWMutex
 	r         rate.Limit
@@ -21,8 +22,9 @@ type RateLimiter struct {
 }
 
 // NewRateLimiter 创建新的速率限制器
-func NewRateLimiter(requestsPerSecond int, burstSize int, maxConnections int) *RateLimiter {
+func NewRateLimiter(enabled bool, requestsPerSecond int, burstSize int, maxConnections int) *RateLimiter {
 	return &RateLimiter{
+		enabled:  enabled,
 		limiters: make(map[string]*rate.Limiter),
 		r:        rate.Limit(requestsPerSecond),
 		b:        burstSize,
@@ -63,6 +65,11 @@ func (rl *RateLimiter) cleanupLimiters() {
 
 // Middleware 速率限制中间件
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
+	// 如果限速器未启用，直接跳过
+	if !rl.enabled {
+		return next
+	}
+
 	// 启动清理协程
 	rl.cleanupLimiters()
 
@@ -112,6 +119,7 @@ func (rl *RateLimiter) GetStats() map[string]interface{} {
 	rl.mu.RUnlock()
 
 	return map[string]interface{}{
+		"enabled":             rl.enabled,
 		"active_limiters":     activeLimiters,
 		"current_connections": currentConns,
 		"max_connections":     rl.maxConns,

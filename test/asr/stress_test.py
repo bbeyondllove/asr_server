@@ -8,7 +8,6 @@ VAD ASR 服务器压力测试工具（优化版）
 
 import asyncio
 import websockets
-import json
 import time
 import threading
 import random
@@ -22,6 +21,7 @@ from collections import deque
 from datetime import datetime
 import platform
 import argparse
+import aiohttp  # 用于HTTP健康检查
 
 # 设置信号处理
 import signal
@@ -83,38 +83,6 @@ class PerformanceMetrics:
             "max_memory_usage": max(self.memory_usage) if self.memory_usage else 0,
             "avg_network_io": statistics.mean([io[0] for io in self.network_io]) if self.network_io else 0,
         }
-    
-    def save_to_file(self, filename):
-        """保存测试结果到文件"""
-        results = {
-            "system_info": {
-                "platform": platform.platform(),
-                "cpu_count": os.cpu_count(),
-                "total_memory": round(psutil.virtual_memory().total / (1024**3), 2),  # GB
-                "start_time": self.start_time,
-                "end_time": self.end_time,
-                "duration": self.end_time - self.start_time
-            },
-            "config": self.config,
-            "results": {
-                "connections": {
-                    "total": self.total_connections,
-                    "successful": self.successful_connections,
-                    "success_rate": self.successful_connections / self.total_connections if self.total_connections else 0,
-                },
-                "audio_files": self.total_audio_files,
-                "successful_recognitions": self.successful_recognitions,
-                "recognition_rate": self.successful_recognitions / self.total_audio_files if self.total_audio_files else 0,
-                "avg_response_time": statistics.mean(self.response_times) if self.response_times else 0,
-            },
-            "recognition_results": self.recognition_results,
-            "errors": self.errors,
-            "response_times": self.response_times,
-            "system_stats": self.system_stats
-        }
-        with open(filename, 'w') as f:
-            json.dump(results, f, indent=2)
-        return filename
 
 # 全局性能指标
 metrics = PerformanceMetrics()
@@ -244,8 +212,8 @@ async def send_audio(websocket, connection_id, audio_info, audio_index):
     timeout_occurred = False
     
     try:
-        # 设置接收超时（基于音频时长，至少5秒，最多20秒）
-        receive_timeout = max(min(duration * 1.5 + 2.0, 20.0), 5.0)
+        # 设置接收超时（基于音频时长，至少10秒，最多60秒）
+        receive_timeout = max(min(duration * 2.0 + 5.0, 60.0), 10.0)
         result_event = asyncio.Event()
         
         # 接收消息的异步任务
@@ -334,7 +302,7 @@ async def test_connection(connection_id, audio_files, results):
     
     try:
         # 连接超时设置
-        connect_timeout = 10.0  # 10秒连接超时
+        connect_timeout = 30.0  # 30秒连接超时
         
         # 建立WebSocket连接
         websocket = await asyncio.wait_for(
@@ -407,7 +375,7 @@ async def test_connection(connection_id, audio_files, results):
             
             # 在下一个音频前随机等待
             if idx < len(audio_files) - 1:
-                await asyncio.sleep(random.uniform(0.5, 2.0))
+                await asyncio.sleep(random.uniform(1.0, 3.0))
         
         # 关闭连接
         await websocket.close()
@@ -445,11 +413,46 @@ def print_test_progress(connections_done, total_connections):
     if connections_done == total_connections:
         print()
 
+async def wait_for_server_ready(server_url, max_wait_time=60):
+    """等待服务器就绪"""
+    health_url = server_url.replace("ws://", "http://").replace("ws/", "health")
+    if not health_url.endswith("/health"):
+        health_url = health_url.replace("/ws", "/health")
+    
+    print(f"🔍 检查服务器健康状态: {health_url}")
+    
+    start_time = time.time()
+    while time.time() - start_time < max_wait_time:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(health_url, timeout=5) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get("status") == "healthy":
+                            print("✅ 服务器已就绪")
+                            return True
+                        else:
+                            print(f"⏳ 服务器正在初始化: {data.get('status')}")
+                    else:
+                        print(f"⏳ 服务器响应状态码: {response.status}")
+        except Exception as e:
+            print(f"⏳ 等待服务器启动: {e}")
+        
+        await asyncio.sleep(2)
+    
+    print("❌ 服务器启动超时")
+    return False
+
 async def run_stress_test(config):
     """运行压力测试"""
     # 存储配置
     metrics.config = config
     metrics.start_time = time.time()
+    
+    # 等待服务器就绪
+    if not await wait_for_server_ready(config["server_url"]):
+        print("❌ 错误：服务器未就绪，测试终止")
+        return
     
     # 获取音频文件
     audio_files = get_audio_files(config["audio_dir"])
@@ -499,11 +502,10 @@ async def run_stress_test(config):
     
     # 记录结束时间
     metrics.end_time = time.time()
-    
-    # 保存结果
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_file = metrics.save_to_file(f"stress_test_report_{timestamp}.json")
-    print(f"\n📊 测试报告已保存至: {report_file}")
+    # 保存结果（不再生成报告文件）
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # report_file = metrics.save_to_file(f"stress_test_report_{timestamp}.json")
+    # print(f"\n📊 测试报告已保存至: {report_file}")
 
 def print_summary():
     """打印测试摘要"""

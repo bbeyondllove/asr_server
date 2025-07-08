@@ -25,6 +25,8 @@ type Task struct {
 	ResultChan chan *Result
 	Callback   func(string, error)
 	Context    context.Context
+	Timeout    time.Duration // 任务超时时间
+	CreatedAt  time.Time     // 任务创建时间
 }
 
 // Result 识别结果

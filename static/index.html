@@ -421,6 +421,7 @@
         let recordingStartTime = 0;
         let recordedAudioData = [];
         let timerInterval = null;
+        let CHUNK_SIZE = 4096;
 
         // DOM 元素
         const connectionStatus = document.getElementById('connectionStatus');
@@ -438,7 +439,7 @@
         const identifyTimer = document.getElementById('identifyTimer');
         const speakersList = document.getElementById('speakersList');
 
-                // Tab 切换功能
+        // Tab 切换功能
         function switchTab(tabName) {
             // 先停止所有录音活动
             stopAllRecording();
@@ -493,20 +494,33 @@
             updateButtons();
         }
 
-        // WebSocket 连接
+        // 获取后端配置，自动设置 CHUNK_SIZE
+        async function fetchChunkSize() {
+            try {
+                const resp = await fetch('/config');
+                const data = await resp.json();
+                if (data && data.audio && data.audio.chunk_size) {
+                    CHUNK_SIZE = data.audio.chunk_size;
+                    console.log('自动设置 CHUNK_SIZE =', CHUNK_SIZE);
+                }
+            } catch (e) {
+                console.warn('获取 chunk_size 失败，使用默认值', CHUNK_SIZE);
+            }
+        }
+
+        // WebSocket 连接（仅首次或断开时建立）
         function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                return ws;
+            }
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
             console.log(`🔌 连接WebSocket: ${wsUrl}`);
-            
             ws = new WebSocket(wsUrl);
-            
             ws.onopen = () => {
                 showMessage(connectionStatus, '已连接到服务器', 'connected');
                 updateButtons();
             };
-            
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
@@ -515,7 +529,6 @@
                     console.error('Error parsing WebSocket message:', error);
                 }
             };
-            
             ws.onclose = () => {
                 console.log('🔌 WebSocket连接断开：停止所有录音');
                 stopAllRecording();
@@ -523,11 +536,11 @@
                 updateButtons();
                 setTimeout(connectWebSocket, 3000);
             };
-            
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 showMessage(connectionStatus, '连接错误', 'error');
             };
+            return ws;
         }
 
         // 处理 WebSocket 消息
@@ -867,7 +880,7 @@
             return new Blob([buffer], { type: 'audio/wav' });
         }
 
-                // 显示消息
+        // 显示消息
         function showMessage(element, message, type) {
             element.innerHTML = message;
             element.className = `status ${type}`;
@@ -972,10 +985,10 @@
         
         speakerNameInput.addEventListener('input', updateSpeakerButtons);
 
-        // 页面加载完成后初始化
-        window.addEventListener('load', () => {
+        // 页面加载时自动获取 chunk_size 并连接 WebSocket
+        window.addEventListener('DOMContentLoaded', async () => {
+            await fetchChunkSize();
             connectWebSocket();
-            loadSpeakers();
         });
 
         // 页面关闭前清理资源
