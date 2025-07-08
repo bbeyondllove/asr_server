@@ -71,6 +71,10 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 - 简化配置结构，去除冗余字段，配置更清晰易用
 - Stream为有状态对象，已移除stream池，改为每次识别动态分配与释放，提升资源利用率与并发安全性
 
+## 📝 TODO
+- 兼容 ten-vad：后续将支持 ten-vad VAD 模型
+- 根据配置自动选择 silero_vad 或 ten-vad，提升灵活性
+
 ## 🏛️ 系统架构
 
 ```

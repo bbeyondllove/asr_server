@@ -22,7 +22,7 @@ from datetime import datetime
 import platform
 import argparse
 import aiohttp  # 用于HTTP健康检查
-
+import json
 # 设置信号处理
 import signal
 def signal_handler(signum, frame):

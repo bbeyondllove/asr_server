@@ -15,10 +15,11 @@ type Config struct {
 		MaxConnections int    `mapstructure:"max_connections"`
 		ReadTimeout    int    `mapstructure:"read_timeout"`
 		WebSocket      struct {
-			ReadTimeout     int `mapstructure:"read_timeout"`
-			MaxMessageSize  int `mapstructure:"max_message_size"`
-			ReadBufferSize  int `mapstructure:"read_buffer_size"`
-			WriteBufferSize int `mapstructure:"write_buffer_size"`
+			ReadTimeout       int  `mapstructure:"read_timeout"`
+			MaxMessageSize    int  `mapstructure:"max_message_size"`
+			ReadBufferSize    int  `mapstructure:"read_buffer_size"`
+			WriteBufferSize   int  `mapstructure:"write_buffer_size"`
+			EnableCompression bool `mapstructure:"enable_compression"`
 		} `mapstructure:"websocket"`
 	} `mapstructure:"server"`
 	Session struct {

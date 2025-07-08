@@ -995,9 +995,7 @@
         window.addEventListener('beforeunload', () => {
             console.log('🚪 页面关闭：清理所有资源');
             stopAllRecording();
-            if (ws) {
-                ws.close();
-            }
+             
         });
 
         // 页面失去焦点时也停止录音（可选）
