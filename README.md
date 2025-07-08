@@ -105,7 +105,7 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 | `vad.threshold` | VAD检测阈值 | 0.5 |
 | `vad.min_silence_duration` | 最小静音时长 | 0.1 |
 | `vad.min_speech_duration` | 最小语音时长 | 0.25 |
-| `vad.pool_size` | VAD池实例数 | 20 |
+| `vad.pool_size` | VAD池实例数 | 200 |
 | `recognition.num_threads` | ASR线程数 | 8-16 |
 | `audio.sample_rate` | 采样率 | 16000 |
 | `server.port` | 服务端口 | 8080 |
