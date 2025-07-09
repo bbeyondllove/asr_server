@@ -36,7 +36,7 @@
   },
   "speaker": {
     "enabled": true,
-    "model_path": "models/speaker/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx",
+    "model_path": "models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
     "num_threads": 8,
     "provider": "cpu",
     "threshold": 0.6,
