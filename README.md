@@ -5,39 +5,82 @@
 ## ✨ 特性
 - 实时多语言语音识别（中/英/日/韩/粤等）
 - VAD智能分段，自动过滤静音
-- 声纹识别（可选）
+- 声纹识别
 - WebSocket 实时通信，低延迟
 - 健康检查、状态监控、优雅关闭
 
 ## 🚀 快速开始
 
-### 系统要求
+### 方式一：Docker 部署（推荐）
+
+> **推荐：Docker 镜像已自动包含主要模型文件（vad、asr、speaker）和 lib 目录，无需手动挂载 models 或 lib 目录。**
+
+#### 构建镜像
+```bash
+docker build -t asr_server .
+```
+
+#### 运行容器（假设端口 8080）
+```bash
+docker run -d -p 8080:8080 --name asr_server asr_server
+```
+
+#### 端口与访问
+- 测试页面: http://localhost:8080/
+- 健康检查: http://localhost:8080/health
+- WebSocket: ws://localhost:8080/ws
+
+---
+
+### 方式二：源码部署（进阶/开发者）
+
+#### 系统要求
 - Go 1.21+
 - Linux/macOS/Windows
 - 内存建议4GB+
 
-### 安装依赖
+#### 安装依赖
 ```bash
 # 克隆项目
- git clone https://github.com/bbeyondllove/asr_server.git
- cd asr_server
+git clone https://github.com/bbeyondllove/asr_server.git
+cd asr_server
 # 安装Go依赖
 go mod tidy
 ```
 
-### 模型准备
+#### 依赖库准备
 
-**模型下载链接：**
-- [SenseVoice多语种模型 (2024-07-17)](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2)
-- [VAD模型 silero_vad.onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx)
-- [声纹识别模型 3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx (Hugging Face)](https://huggingface.co/csukuangfj/speaker-embedding-models/blob/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx)
+- **主程序依赖的动态库**（如 `onnxruntime.dll`、`sherpa-onnx-c-api.dll`、`libonnxruntime.so`、`libsherpa-onnx-c-api.so`）已放在项目根目录下的 `lib/` 目录。
 
-模型下载后解压到目录models：
-1. 下载语音识别模型（model.int8.onnx, tokens.txt）到 models/sherpa-onnx-xxx/
-2. 下载 VAD 模型（silero_vad.onnx）到 models/vad/
-3. （可选）下载声纹识别模型到 models/speaker/
+#### 模型准备
 
-### 运行服务
+**VAD模型：**
+- **silero_vad**：轻量级、跨平台的语音活动检测模型，适合大多数实时场景。
+  - 下载链接：[silero_vad.onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx)
+  - 存放路径：`models/vad/silero_vad/silero_vad.onnx`
+- **ten-vad**：高性能 VAD 动态库（仅 Linux x64 示例，更多平台见 Hugging Face 页面）。
+  - 下载链接：[libten_vad.so (Linux x64)](https://huggingface.co/TEN-framework/ten-vad)
+  - 存放路径：`models/vad/ten-vad`
+
+**ASR模型：**
+- **SenseVoice多语种模型**：支持中/英/日/韩/粤等多语种识别，适合大多数通用场景。
+  - 下载链接：[model.int8.onnx](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)
+  - 存放路径：`models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/`
+
+**声纹识别模型：**
+- **3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx**：支持多语种声纹识别。
+  - 下载链接：[3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx](https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx)
+  - 存放路径：`models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx`
+
+模型下载后解压到目录 models：
+1. VAD 模型: 
+    models/vad/silero_vad/
+    models/vad/ten-vad/Linux/x64/
+2. ASR模型: models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
+3. 声纹识别模型: models/speaker/
+
+
+#### 运行服务
 ```bash
 # 默认配置启动
 go run main.go
@@ -46,10 +89,12 @@ go build -o asr_server
 ./asr_server
 ```
 
-### 访问测试
+#### 访问测试
 - 测试页面: http://localhost:8080/
 - 健康检查: http://localhost:8080/health
 - WebSocket: ws://localhost:8080/ws
+
+---
 
 ## ⚙️ 配置
 详细配置请参考 `config.json` 文件。
@@ -139,7 +184,7 @@ python stress_test.py --connections 100 --audio-per-connection 2
 ## 📄 许可证
 本项目采用 MIT 许可证 - 查看 LICENSE 文件了解详情。
 
-## �� 致谢
+## 🙏 致谢
 - Sherpa-ONNX - 核心语音识别引擎
 - SenseVoice - 多语言语音识别模型
 - Silero VAD - 语音活动检测模型

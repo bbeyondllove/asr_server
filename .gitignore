@@ -1,4 +1,2 @@
-*.onnx
-*.tar.bz2
-sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
+models
 logs
