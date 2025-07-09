@@ -44,6 +44,10 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 
 		// 获取数据库统计信息
 		speakerGroup.GET("/stats", h.GetStats)
+
+		//Base64 注册与识别接口
+		speakerGroup.POST("/register_base64", h.RegisterSpeakerBase64)
+		speakerGroup.POST("/identify_base64", h.IdentifySpeakerBase64)
 	}
 }
 
