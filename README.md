@@ -59,12 +59,12 @@ go mod tidy
   - 下载链接：[silero_vad.onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx)
   - 存放路径：`models/vad/silero_vad/silero_vad.onnx`
 - **ten-vad**：高性能 VAD 动态库（仅 Linux x64 示例，更多平台见 Hugging Face 页面）。
-  - 下载链接：[libten_vad.so (Linux x64)](https://huggingface.co/TEN-framework/ten-vad)
+  - 下载链接：[ten-vad](https://huggingface.co/TEN-framework/ten-vad)
   - 存放路径：`models/vad/ten-vad`
 
 **ASR模型：**
 - **SenseVoice多语种模型**：支持中/英/日/韩/粤等多语种识别，适合大多数通用场景。
-  - 下载链接：[model.int8.onnx](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)
+  - 下载链接：[sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)
   - 存放路径：`models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/`
 
 **声纹识别模型：**
@@ -75,7 +75,7 @@ go mod tidy
 模型下载后解压到目录 models：
 1. VAD 模型: 
     models/vad/silero_vad/
-    models/vad/ten-vad/Linux/x64/
+    models/vad/ten-vad/
 2. ASR模型: models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
 3. 声纹识别模型: models/speaker/
 
