@@ -58,7 +58,7 @@ go mod tidy
 - **silero_vad**：轻量级、跨平台的语音活动检测模型，适合大多数实时场景。
   - 下载链接：[silero_vad.onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx)
   - 存放路径：`models/vad/silero_vad/silero_vad.onnx`
-- **ten-vad**：高性能 VAD 动态库（仅 Linux x64 示例，更多平台见 Hugging Face 页面）。
+- **ten-vad**：高性能 VAD 动态库
   - 下载链接：[ten-vad](https://huggingface.co/TEN-framework/ten-vad)
   - 存放路径：`models/vad/ten-vad`
 
@@ -106,19 +106,6 @@ ws.onopen = () => ws.send(audioBuffer);
 ws.onmessage = e => console.log('识别结果:', e.data);
 ```
 
-## 📝 其它
-- 支持热加载配置、日志轮转、速率限制等生产特性
-- 详细用法和高级配置请见源码和注释
-
-## 🆕 更新说明
-- 修复所有主流程参数硬编码，全部支持配置文件灵活调整
-- 增加超时控制与速率限制（可开关），便于测试和生产环境调优
-- 简化配置结构，去除冗余字段，配置更清晰易用
-- Stream为有状态对象，已移除stream池，改为每次识别动态分配与释放，提升资源利用率与并发安全性
-
-## 📝 TODO
-- 兼容 ten-vad：后续将支持 ten-vad VAD 模型
-- 根据配置自动选择 silero_vad 或 ten-vad，提升灵活性
 
 ## 🏛️ 系统架构
 
@@ -144,10 +131,7 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 │  └──────────────┘  │    │  └──────────────┘    │
 └────────────────────┘    └──────────────────────┘
 ```
-
-- WebSocket 客户端上传音频流，服务端 VAD 池分段，分段后动态 new stream 识别，结果通过 WebSocket 实时返回。
-- 主要模块：WebSocket 服务、VAD 池、ASR 识别器、Session 管理、声纹识别（可选）、健康检查。
-
+ 
 ## 🎛️ 关键参数说明
 | 参数 | 说明 | 推荐值 |
 |------|------|--------|
