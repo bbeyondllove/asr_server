@@ -50,17 +50,10 @@ go mod tidy
 
 #### 依赖库准备
 
-- **主程序依赖的动态库**（如 `onnxruntime.dll`、`sherpa-onnx-c-api.dll`、`libonnxruntime.so`、`libsherpa-onnx-c-api.so`）已放在项目根目录下的 `lib/` 目录。
+- **主程序依赖的动态库**（如 ``libonnxruntime.so`、`libsherpa-onnx-c-api.so`）linux动态库已放在项目根目录下的 `lib/` 目录，windows动态库需自行下载。 `sherpa-onnx-c-api`Windows下载地址：[sherpa-onnx-go-windows](https://github.com/k2-fsa/sherpa-onnx-go-windows)
+
 
 #### 模型准备
-
-**VAD模型：**
-- **silero_vad**：轻量级、跨平台的语音活动检测模型，适合大多数实时场景。
-  - 下载链接：[silero_vad.onnx](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx)
-  - 存放路径：`models/vad/silero_vad/silero_vad.onnx`
-- **ten-vad**：高性能 VAD 动态库
-  - 下载链接：[ten-vad](https://huggingface.co/TEN-framework/ten-vad)
-  - 存放路径：`models/vad/ten-vad`
 
 **ASR模型：**
 - **SenseVoice多语种模型**：支持中/英/日/韩/粤等多语种识别，适合大多数通用场景。

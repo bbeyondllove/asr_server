@@ -17,7 +17,7 @@ import (
 
 type AppDependencies struct {
 	SessionManager   *session.Manager
-	VADPool          *pool.VADPool
+	VADPool          pool.VADPoolInterface
 	RateLimiter      *middleware.RateLimiter
 	SpeakerManager   *speaker.Manager
 	SpeakerHandler   *speaker.Handler
@@ -55,7 +55,7 @@ func registerHotReloadCallbacks(hotReloadMgr *hotreload.HotReloadManager) {
 	}
 
 	hotReloadMgr.RegisterCallback("logging.level", func() {
-		logger.Infof("🔄 Log level changed to: %s", config.GlobalConfig.Logging.Level)
+		logger.Info("🔄 Log level changed to: %s", config.GlobalConfig.Logging.Level)
 	})
 	hotReloadMgr.RegisterCallback("vad", func() {
 		logger.Info("🔄 VAD configuration changed")
@@ -80,52 +80,44 @@ func InitApp(cfg *config.Config) (*AppDependencies, error) {
 	logger.Info("🔧 Initializing hot reload manager...")
 	hotReloadMgr, err := hotreload.NewHotReloadManager()
 	if err != nil {
-		logger.WithError(err).Error("Failed to initialize hot reload manager")
+		logger.Error(fmt.Sprintf("Failed to initialize hot reload manager: %v", err))
 		return nil, fmt.Errorf("failed to initialize hot reload manager: %v", err)
 	}
 	if err := hotReloadMgr.StartWatching("config.json"); err != nil {
-		logger.WithError(err).Warn("Failed to start config file watching, continuing without hot reload")
-	}
-
-	// 检查VAD模型文件是否存在
-	if _, err := os.Stat(cfg.VAD.ModelPath); os.IsNotExist(err) {
-		logger.WithField("model_path", cfg.VAD.ModelPath).Error("VAD model file not found")
-		return nil, fmt.Errorf("VAD model file not found: %s", cfg.VAD.ModelPath)
+		logger.Warn(fmt.Sprintf("Failed to start config file watching, continuing without hot reload: %v", err))
 	}
 
 	// 初始化全局识别器
 	logger.Info("🔧 Initializing global recognizer...")
 	globalRecognizer, err := createRecognizer(cfg)
 	if err != nil {
-		logger.WithError(err).Error("Failed to initialize global recognizer")
+		logger.Error(fmt.Sprintf("Failed to initialize global recognizer: %v", err))
 		return nil, fmt.Errorf("failed to initialize global recognizer: %v", err)
 	}
 
-	// 创建VAD配置
-	vadConfig := &sherpa.VadModelConfig{
-		SileroVad: sherpa.SileroVadModelConfig{
-			Model:              cfg.VAD.ModelPath,
-			Threshold:          cfg.VAD.Threshold,
-			MinSilenceDuration: cfg.VAD.MinSilenceDuration,
-			MinSpeechDuration:  cfg.VAD.MinSpeechDuration,
-			WindowSize:         cfg.VAD.WindowSize,
-			MaxSpeechDuration:  cfg.VAD.MaxSpeechDuration,
-		},
-		SampleRate: cfg.Audio.SampleRate,
-		NumThreads: cfg.Recognition.NumThreads,
-		Provider:   cfg.Recognition.Provider,
-		Debug:      0,
+	// 根据VAD类型初始化VAD池
+	var vadPool pool.VADPoolInterface
+	vadFactory := pool.NewVADFactory()
+
+	if config.GlobalConfig.VAD.Provider == pool.SILERO_TYPE {
+		// 检查VAD模型文件是否存在（仅对silero需要）
+		if _, err := os.Stat(cfg.VAD.SileroVAD.ModelPath); os.IsNotExist(err) {
+			logger.Error(fmt.Sprintf("VAD model file not found, model_path=%s", cfg.VAD.SileroVAD.ModelPath))
+			return nil, fmt.Errorf("VAD model file not found: %s", cfg.VAD.SileroVAD.ModelPath)
+		}
+	}
+
+	// 使用工厂创建VAD池
+	vadPool, err = vadFactory.CreateVADPool()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to create VAD pool: %v", err))
+		return nil, fmt.Errorf("failed to create VAD pool: %v", err)
 	}
 
 	// 初始化VAD池
-	logger.WithField("pool_size", cfg.VAD.PoolSize).Info("🔧 Initializing VAD pool...")
-	vadPool := pool.NewVADPool(
-		vadConfig,
-		cfg.VAD.BufferSizeSeconds,
-		cfg.VAD.PoolSize,
-	)
+	logger.Info(fmt.Sprintf("🔧 Initializing VAD pool... pool_size=%d", cfg.VAD.PoolSize))
 	if err := vadPool.Initialize(); err != nil {
-		logger.WithError(err).Error("Failed to initialize VAD pool")
+		logger.Error(fmt.Sprintf("Failed to initialize VAD pool: %v", err))
 		return nil, fmt.Errorf("failed to initialize VAD pool: %v", err)
 	}
 
@@ -137,10 +129,7 @@ func InitApp(cfg *config.Config) (*AppDependencies, error) {
 	registerHotReloadCallbacks(hotReloadMgr)
 
 	// 初始化速率限制器
-	logger.WithFields(logger.Fields{
-		"requests_per_second": cfg.RateLimit.RequestsPerSecond,
-		"max_connections":     cfg.RateLimit.MaxConnections,
-	}).Info("🔧 Initializing rate limiter...")
+	logger.Info(fmt.Sprintf("🔧 Initializing rate limiter... requests_per_second=%d, max_connections=%d", cfg.RateLimit.RequestsPerSecond, cfg.RateLimit.MaxConnections))
 	rateLimiter := middleware.NewRateLimiter(
 		cfg.RateLimit.Enabled,
 		cfg.RateLimit.RequestsPerSecond,
@@ -165,10 +154,10 @@ func InitApp(cfg *config.Config) (*AppDependencies, error) {
 				speakerManager = mgr
 				speakerHandler = speaker.NewHandler(speakerManager)
 			} else {
-				logger.WithError(err).Warn("Failed to initialize speaker recognition module, continuing without it")
+				logger.Warn(fmt.Sprintf("Failed to initialize speaker recognition module, continuing without it: %v", err))
 			}
 		} else {
-			logger.WithField("model_path", cfg.Speaker.ModelPath).Warn("Speaker model file not found, speaker recognition disabled")
+			logger.Warn(fmt.Sprintf("Speaker model file not found, speaker recognition disabled, model_path=%s", cfg.Speaker.ModelPath))
 		}
 	}
 

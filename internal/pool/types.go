@@ -65,3 +65,8 @@ var (
 	ErrPoolShutdown = fmt.Errorf("pool is shutdown")
 	ErrQueueFull    = fmt.Errorf("task queue is full")
 )
+
+const (
+	TEN_VAD_TYPE = "ten_vad"
+	SILERO_TYPE  = "silero_vad"
+)

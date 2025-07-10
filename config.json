@@ -16,14 +16,22 @@
     "max_send_errors": 10
   },
   "vad": {
-    "model_path": "models/vad/silero_vad/silero_vad.onnx",
+    "provider": "ten_vad",
+    "pool_size": 200,
     "threshold": 0.5,
-    "min_silence_duration": 0.1,
-    "min_speech_duration": 0.25,
-    "max_speech_duration": 8.0,
-    "window_size": 512,
-    "buffer_size_seconds": 10.0,
-    "pool_size": 200
+    "silero_vad":{
+      "model_path": "models/vad/silero_vad/silero_vad.onnx",
+      "min_silence_duration": 0.1,
+      "min_speech_duration": 0.25,
+      "max_speech_duration": 8.0,
+      "window_size": 512,
+      "buffer_size_seconds": 10.0
+    },
+    "ten_vad":{
+        "hop_size": 512,
+        "min_speech_frames": 12,
+        "max_silence_frames": 5
+      }
   },
   "recognition": {
     "model_path": "models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx",

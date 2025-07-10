@@ -26,16 +26,7 @@ type Config struct {
 		SendQueueSize int `mapstructure:"send_queue_size"`
 		MaxSendErrors int `mapstructure:"max_send_errors"`
 	} `mapstructure:"session"`
-	VAD struct {
-		ModelPath          string  `mapstructure:"model_path"`
-		Threshold          float32 `mapstructure:"threshold"`
-		MinSilenceDuration float32 `mapstructure:"min_silence_duration"`
-		MinSpeechDuration  float32 `mapstructure:"min_speech_duration"`
-		MaxSpeechDuration  float32 `mapstructure:"max_speech_duration"`
-		WindowSize         int     `mapstructure:"window_size"`
-		BufferSizeSeconds  float32 `mapstructure:"buffer_size_seconds"`
-		PoolSize           int     `mapstructure:"pool_size"`
-	} `mapstructure:"vad"`
+	VAD         VADConfig `mapstructure:"vad"`
 	Recognition struct {
 		ModelPath                   string `mapstructure:"model_path"`
 		TokensPath                  string `mapstructure:"tokens_path"`
@@ -84,6 +75,30 @@ type Config struct {
 		MaxAge     int    `mapstructure:"max_age"`
 		Compress   bool   `mapstructure:"compress"`
 	} `mapstructure:"logging"`
+}
+
+type VADConfig struct {
+	Provider  string        `mapstructure:"provider"`
+	PoolSize  int           `mapstructure:"pool_size"`
+	Threshold float32       `mapstructure:"threshold"`
+	SileroVAD SileroVADConf `mapstructure:"silero_vad"`
+	TenVAD    TenVADConf    `mapstructure:"ten_vad"`
+}
+
+type SileroVADConf struct {
+	ModelPath          string  `mapstructure:"model_path"`
+	Threshold          float32 `mapstructure:"threshold"`
+	MinSilenceDuration float32 `mapstructure:"min_silence_duration"`
+	MinSpeechDuration  float32 `mapstructure:"min_speech_duration"`
+	MaxSpeechDuration  float32 `mapstructure:"max_speech_duration"`
+	WindowSize         int     `mapstructure:"window_size"`
+	BufferSizeSeconds  float32 `mapstructure:"buffer_size_seconds"`
+}
+
+type TenVADConf struct {
+	HopSize          int `mapstructure:"hop_size"`
+	MinSpeechFrames  int `mapstructure:"min_speech_frames"`
+	MaxSilenceFrames int `mapstructure:"max_silence_frames"`
 }
 
 var GlobalConfig Config
@@ -193,7 +208,7 @@ func GetFloat64(key string) float64 {
 func PrintConfig() {
 	fmt.Println("📋 Current Configuration:")
 	fmt.Printf("  Server: %s:%d\n", GlobalConfig.Server.Host, GlobalConfig.Server.Port)
-	fmt.Printf("  VAD Model: %s\n", GlobalConfig.VAD.ModelPath)
+	fmt.Printf("  VAD Model: %s\n", GlobalConfig.VAD.SileroVAD.ModelPath)
 	fmt.Printf("  ASR Model: %s\n", GlobalConfig.Recognition.ModelPath)
 	fmt.Printf("  Pool Workers: %d\n", GlobalConfig.Pool.WorkerCount)
 	fmt.Printf("  VAD Pool Size: %d\n", GlobalConfig.VAD.PoolSize)

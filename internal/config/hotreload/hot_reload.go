@@ -58,7 +58,7 @@ func (m *HotReloadManager) StartWatching(configPath string) error {
 	// 启动监听协程
 	go m.watchLoop()
 
-	logger.Infof("🔍 Started watching config file: %s", configPath)
+	logger.Info(fmt.Sprintf("🔍 Started watching config file: %s", configPath))
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (m *HotReloadManager) watchLoop() {
 				m.handleConfigChange(event.Name)
 			}
 		case err := <-m.watcher.Errors:
-			logger.Errorf("❌ Config file watcher error: %v", err)
+			logger.Error(fmt.Sprintf("❌ Config file watcher error: %v", err))
 		case <-m.stopChan:
 			logger.Info("🛑 Config file watcher stopped")
 			return
@@ -99,13 +99,13 @@ func (m *HotReloadManager) reloadConfig() {
 
 	// 重新读取配置文件
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Errorf("❌ Failed to read config file: %v", err)
+		logger.Error(fmt.Sprintf("❌ Failed to read config file: %v", err))
 		return
 	}
 
 	// 重新解析配置
 	if err := viper.Unmarshal(&config.GlobalConfig); err != nil {
-		logger.Errorf("❌ Failed to unmarshal config: %v", err)
+		logger.Error(fmt.Sprintf("❌ Failed to unmarshal config: %v", err))
 		return
 	}
 
@@ -121,13 +121,13 @@ func (m *HotReloadManager) executeCallbacks() {
 	defer m.mu.RUnlock()
 
 	for configKey, callbacks := range m.callbacks {
-		logger.Infof("🔄 Executing callbacks for config key: %s", configKey)
+		logger.Info(fmt.Sprintf("🔄 Executing callbacks for config key: %s", configKey))
 		for _, callback := range callbacks {
 			// 在goroutine中执行回调，避免阻塞
 			go func(cb func()) {
 				defer func() {
 					if r := recover(); r != nil {
-						logger.Errorf("❌ Callback panicked: %v", r)
+						logger.Error(fmt.Sprintf("❌ Callback panicked: %v", r))
 					}
 				}()
 				cb()

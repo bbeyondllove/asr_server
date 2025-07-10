@@ -3,10 +3,10 @@ package ws
 import (
 	"asr_server/config"
 	"asr_server/internal/logger"
-	"asr_server/internal/pool"
 	"asr_server/internal/session"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -31,11 +31,11 @@ func GenerateSessionID() string {
 }
 
 // HandleWebSocket 处理 WebSocket 连接
-// 依赖注入 sessionManager, globalRecognizer, vadPool
-func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *session.Manager, globalRecognizer *sherpa.OfflineRecognizer, vadPool *pool.VADPool) {
+// 依赖注入 sessionManager, globalRecognizer
+func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *session.Manager, globalRecognizer *sherpa.OfflineRecognizer) {
 	conn, err := Upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.WithError(err).Error("WebSocket upgrade failed")
+		logger.Error(fmt.Sprintf("WebSocket upgrade failed: %v", err))
 		return
 	}
 
@@ -50,20 +50,17 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *ses
 	// 创建会话
 	sess, err := sessionManager.CreateSession(sessionID, conn)
 	if err != nil {
-		logger.WithFields(logger.Fields{
-			"session_id": sessionID,
-			"error":      err,
-		}).Error("Failed to create session")
+		logger.Error(fmt.Sprintf("Failed to create session, session_id=%s, error=%v", sessionID, err))
 		conn.Close()
 		return
 	}
 
 	defer func() {
 		sessionManager.RemoveSession(sessionID)
-		logger.WithField("session_id", sessionID).Info("WebSocket connection closed")
+		logger.Info(fmt.Sprintf("WebSocket connection closed, session_id=%s", sessionID))
 	}()
 
-	logger.WithField("session_id", sessionID).Info("New WebSocket connection established")
+	logger.Info(fmt.Sprintf("New WebSocket connection established, session_id=%s", sessionID))
 
 	// 发送连接确认
 	if sess != nil {
@@ -74,7 +71,7 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *ses
 			"session_id": sessionID,
 		}:
 		default:
-			logger.Warnf("Session %s send queue is full, dropping connection confirmation", sessionID)
+			logger.Warn("Session send queue is full, dropping connection confirmation")
 		}
 	}
 
@@ -82,10 +79,7 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *ses
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			logger.WithFields(logger.Fields{
-				"session_id": sessionID,
-				"error":      err,
-			}).Warn("WebSocket read error")
+			logger.Warn("WebSocket read error")
 			break
 		}
 
@@ -96,21 +90,14 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *ses
 
 		// 检查消息大小
 		if wsConfig.MaxMessageSize > 0 && len(message) > wsConfig.MaxMessageSize {
-			logger.WithFields(logger.Fields{
-				"session_id":   sessionID,
-				"message_size": len(message),
-				"max_size":     wsConfig.MaxMessageSize,
-			}).Warn("Message too large, closing connection")
+			logger.Warn("Message too large, closing connection")
 			break
 		}
 
 		// 处理音频数据
 		if len(message) > 0 {
 			if err := sessionManager.ProcessAudioData(sessionID, message); err != nil {
-				logger.WithFields(logger.Fields{
-					"session_id": sessionID,
-					"error":      err,
-				}).Error("Failed to process audio data")
+				logger.Error(fmt.Sprintf("Failed to process audio data, session_id=%s, error=%v", sessionID, err))
 				// 通过session的SendQueue发送错误消息
 				if sess != nil {
 					select {
@@ -119,7 +106,7 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request, sessionManager *ses
 						"message": err.Error(),
 					}:
 					default:
-						logger.Warnf("Session %s send queue is full, dropping error message", sessionID)
+						logger.Warn("Session send queue is full, dropping error message")
 					}
 				}
 			}
