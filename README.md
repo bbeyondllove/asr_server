@@ -50,8 +50,7 @@ go mod tidy
 
 #### 依赖库准备
 
-- **主程序依赖的动态库**（如 ``libonnxruntime.so`、`libsherpa-onnx-c-api.so`）linux动态库已放在项目根目录下的 `lib/` 目录，windows动态库需自行下载。 `sherpa-onnx-c-api`Windows下载地址：[sherpa-onnx-go-windows](https://github.com/k2-fsa/sherpa-onnx-go-windows)
-
+- **主程序依赖的动态库**（如 libonnxruntime.so/libsherpa-onnx-c-api.so）linux动态库已放在项目根目录下的 lib 目录，windows动态库需自行下载。
 
 #### 模型准备
 
@@ -64,13 +63,6 @@ go mod tidy
 - **3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx**：支持多语种声纹识别。
   - 下载链接：[3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx](https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx)
   - 存放路径：`models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx`
-
-模型下载后解压到目录 models：
-1. VAD 模型: 
-    models/vad/silero_vad/
-    models/vad/ten-vad/
-2. ASR模型: models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/
-3. 声纹识别模型: models/speaker/
 
 
 #### 运行服务
