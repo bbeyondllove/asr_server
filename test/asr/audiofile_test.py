@@ -258,8 +258,6 @@ class RealAudioTest:
         recognition_rate = (total_recognitions / len(results)) if results else 0
         
         print(f"   📈 连接成功率: {success_rate:.1f}%")
-        print(f"   🎤 平均识别数/文件: {recognition_rate:.1f}")
-        
         print("="*60)
 
 def signal_handler(signum, frame):

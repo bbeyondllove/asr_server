@@ -512,18 +512,15 @@ def print_summary():
     if not metrics.total_connections:
         print("❌ 错误：未执行测试")
         return
-    
-    print("\n" + "="*80)
-    print("🎯 VAD ASR 服务器压力测试结果摘要")
-    print("="*80)
-    
+    print("\n🎯 VAD ASR 服务器压力测试结果摘要")
+
     duration = metrics.end_time - metrics.start_time
     print(f"⏱️  总测试时间: {duration:.2f}秒")
     print(f"🔌 并发连接数: {metrics.total_connections}")
     print(f"✅ 成功连接率: {metrics.successful_connections}/{metrics.total_connections} ({metrics.successful_connections/metrics.total_connections*100:.1f}%)")
     print(f"🎤 测试音频文件数: {metrics.total_audio_files}")
     print(f"🎯 成功识别率: {metrics.successful_recognitions}/{metrics.total_audio_files} ({metrics.successful_recognitions/metrics.total_audio_files*100:.1f}%)")
-    
+
     # 响应时间统计
     if metrics.response_times:
         print(f"\n⏱️  响应时间统计:")
@@ -531,10 +528,9 @@ def print_summary():
         print(f"  中位数: {statistics.median(metrics.response_times):.2f}秒")
         print(f"  最小值: {min(metrics.response_times):.2f}秒")
         print(f"  最大值: {max(metrics.response_times):.2f}秒")
-        
         if len(metrics.response_times) > 4:
             print(f"  95百分位: {statistics.quantiles(metrics.response_times, n=100)[94]:.2f}秒")
-    
+
     # 系统资源使用情况
     if metrics.system_stats:
         print(f"\n💻 系统资源使用情况:")
@@ -542,24 +538,37 @@ def print_summary():
         mem_avg = sum(stat["memory"] for stat in metrics.system_stats) / len(metrics.system_stats)
         print(f"  CPU平均使用率: {cpu_avg:.1f}%")
         print(f"  内存平均使用率: {mem_avg:.1f}%")
-        
-        # 网络IO总量（MB）
         net_total = sum(stat["network"] for stat in metrics.system_stats) / (1024 * 1024)
         print(f"  网络流量总量: {net_total:.2f} MB")
-    
-    # 识别结果展示
-    if metrics.recognition_results:
-        print(f"\n🎯 识别结果详情 (成功识别: {len(metrics.recognition_results)}条)")
-        print("-" * 60)
-        for i, result in enumerate(metrics.recognition_results, 1):
-            print(f"{i:2d}. 连接{result['connection']} - {result['audio']}")
-            print(f"    📝 识别文本: '{result['text']}'")
-            print(f"    ⏱️  响应时间: {result['response_time']:.2f}s")
-            if i <= 10:  # 只显示前10条详细结果
-                continue
-            elif i == 11:
-                print(f"    ... (还有 {len(metrics.recognition_results) - 10} 条结果)")
-                break
+
+    # 详细识别结果统计
+    print(f"\n📋 详细识别结果:")
+    # 统计每个音频文件的识别数
+    file_result_count = {}
+    file_texts = {}
+    for r in metrics.recognition_results:
+        fname = r['audio']
+        file_result_count[fname] = file_result_count.get(fname, 0) + 1
+        file_texts.setdefault(fname, []).append(r['text'])
+    for fname in sorted(file_result_count.keys()):
+        print(f"   {fname}: {file_result_count[fname]}个识别结果")
+        for text in file_texts[fname]:
+            print(f"      └─ \"{text}\"")
+    if not file_result_count:
+        print("   ⚠️  没有识别到文本")
+
+    # 性能评估
+    print(f"\n🏆 性能评估:")
+    success_rate = (metrics.successful_connections / metrics.total_connections) * 100 if metrics.total_connections else 0
+    recognition_rate = (metrics.successful_recognitions / metrics.total_audio_files * 100) if metrics.total_audio_files else 0
+    if metrics.successful_recognitions > 0:
+        print("   🎉 VAD和ASR系统工作正常!")
+        print("   ✅ 能够正确识别音频")
+    else:
+        print("   ⚠️  未检测到识别结果")
+        print("   💡 可能需要调整VAD阈值或检查ASR模型")
+    print(f"   📈 连接成功率: {success_rate:.1f}%")
+    print(f"   🎤 识别率: {recognition_rate:.1f}%")
 
     # 错误统计
     if metrics.errors:
@@ -568,12 +577,11 @@ def print_summary():
         for error in metrics.errors:
             error_type = error.get("error", "未知错误")
             error_types[error_type] = error_types.get(error_type, 0) + 1
-        
         print("  错误类型分布:")
         for error, count in error_types.items():
             print(f"    {error}: {count}次")
-    
-    print("="*80)
+
+    print()
 
 def main():
     # 设置信号处理
@@ -621,11 +629,16 @@ def main():
     if mem.percent > 80:
         print(f"⚠️  警告: 内存使用率过高 ({mem.percent}%)，测试可能不可靠")
     
-    # 运行测试
-    asyncio.run(run_stress_test(config))
-    
-    # 打印摘要
-    print_summary()
+    # 运行测试并确保最终汇总一定输出
+    try:
+        asyncio.run(run_stress_test(config))
+    except Exception as e:
+        print(f"❌ 测试过程中发生异常: {e}")
+    finally:
+        print("\n" + "="*80)
+        print("📝 压力测试最终汇总")
+        print_summary()
+        print("="*80)
 
 if __name__ == "__main__":
     main()

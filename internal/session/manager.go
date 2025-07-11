@@ -444,43 +444,27 @@ func (m *Manager) handleRecognitionResult(sessionID, result string, err error) {
 		return
 	}
 
-	if err != nil {
-		if err.Error() == "recognition failed" {
-			logger.Warn("Recognition failed for session, not sending to user")
-			return
-		}
-		logger.Error("Recognition error for session %s: %v", sessionID, err)
-		// 发送错误消息
-		errorMsg := map[string]interface{}{
-			"type":      "error",
-			"message":   "Recognition failed",
-			"error":     err.Error(),
+	// 只在err为nil且result非空时返回识别结果
+	if err == nil && len(result) > 0 {
+		response := map[string]interface{}{
+			"type":      "final",
+			"text":      result,
 			"timestamp": time.Now().UnixMilli(),
 		}
-
-		// 非阻塞发送
 		select {
-		case session.SendQueue <- errorMsg:
+		case session.SendQueue <- response:
+			logger.Info(fmt.Sprintf("Recognition result queued for session %s: %s", sessionID, result))
 		default:
-			logger.Warn("Session %s send queue is full, dropping error message", sessionID)
+			logger.Warn("Session %s send queue is full, dropping recognition result", sessionID)
 		}
 		return
 	}
 
-	// 发送识别结果
-	response := map[string]interface{}{
-		"type":      "final",
-		"text":      result,
-		"timestamp": time.Now().UnixMilli(),
+	// 有错误时记录日志，但不返回给用户
+	if err != nil {
+		logger.Error("Recognition error for session %s: %v", sessionID, err)
 	}
-
-	// 非阻塞发送
-	select {
-	case session.SendQueue <- response:
-		logger.Info(fmt.Sprintf("Recognition result queued for session %s: %s", sessionID, result))
-	default:
-		logger.Warn("Session %s send queue is full, dropping recognition result", sessionID)
-	}
+	// 其他情况（如识别失败、错误或结果为空）不返回任何内容
 }
 
 // closeSession 关闭会话

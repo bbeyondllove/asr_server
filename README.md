@@ -128,13 +128,42 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 ## 🎛️ 关键参数说明
 | 参数 | 说明 | 推荐值 |
 |------|------|--------|
+| `vad.provider` | VAD类型（silero_vad 或 ten_vad） | ten_vad |
+| `vad.pool_size` | VAD池实例数 | 2/200 |
 | `vad.threshold` | VAD检测阈值 | 0.5 |
-| `vad.min_silence_duration` | 最小静音时长 | 0.1 |
-| `vad.min_speech_duration` | 最小语音时长 | 0.25 |
-| `vad.pool_size` | VAD池实例数 | 200 |
+| `vad.silero_vad.min_silence_duration` | silero_vad: 最小静音时长 | 0.1 |
+| `vad.silero_vad.min_speech_duration` | silero_vad: 最小语音时长 | 0.25 |
+| `vad.silero_vad.max_speech_duration` | silero_vad: 最大语音时长 | 8.0 |
+| `vad.silero_vad.window_size` | silero_vad: 窗口大小 | 512 |
+| `vad.silero_vad.buffer_size_seconds` | silero_vad: 缓冲区时长 | 10.0 |
+| `vad.ten_vad.hop_size` | ten-vad: 帧移 | 512 |
+| `vad.ten_vad.min_speech_frames` | ten-vad: 最短语音帧数 | 12 |
+| `vad.ten_vad.max_silence_frames` | ten-vad: 最大静音帧数 | 5 |
 | `recognition.num_threads` | ASR线程数 | 8-16 |
 | `audio.sample_rate` | 采样率 | 16000 |
 | `server.port` | 服务端口 | 8080 |
+
+### VAD 配置示例
+```jsonc
+"vad": {
+  "provider": "ten_vad",      // 选择 ten_vad 或 silero_vad
+  "pool_size": 200,
+  "threshold": 0.5,
+  "silero_vad": {
+    "model_path": "models/vad/silero_vad/silero_vad.onnx",
+    "min_silence_duration": 0.1,
+    "min_speech_duration": 0.25,
+    "max_speech_duration": 8.0,
+    "window_size": 512,
+    "buffer_size_seconds": 10.0
+  },
+  "ten_vad": {
+    "hop_size": 512,
+    "min_speech_frames": 12,
+    "max_silence_frames": 5
+  }
+}
+```
 
 ## 🧪 测试例子
 项目自带 test/asr/ 目录下的测试脚本：
@@ -159,12 +188,13 @@ python stress_test.py --connections 100 --audio-per-connection 2
 5. 开启 Pull Request
 
 ## 📄 许可证
-本项目采用 MIT 许可证 - 查看 LICENSE 文件了解详情。
+本项目采用 MIT 许可证  
 
 ## 🙏 致谢
-- Sherpa-ONNX - 核心语音识别引擎
-- SenseVoice - 多语言语音识别模型
-- Silero VAD - 语音活动检测模型
+- [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) - 核心语音识别引擎
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 多语言语音识别模型
+- [Silero VAD](https://github.com/snakers4/silero-vad) - 语音活动检测模型
+- [ten-vad](https://github.com/zhenghuatan/ten-vad) - 高效端点检测算法
 
 ## 📞 支持
 如有问题或建议，请：
