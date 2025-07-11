@@ -1,4 +1,5 @@
-models
+models/asr
+models/spearker
 logs
 data
 .vscode
