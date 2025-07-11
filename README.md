@@ -180,7 +180,13 @@ python stress_test.py --connections 100 --audio-per-connection 2
 5. 开启 Pull Request
 
 ## 📄 许可证
-本项目采用 MIT 许可证  
+
+本项目整体采用 MIT 许可证。但请注意：
+
+- 如果你使用 ten-vad 相关功能（即 `vad.provider` 设为 `ten_vad`），需遵守 [ten-vad 的 License](https://github.com/ten-framework/ten-vad/blob/main/LICENSE)。
+- 如果仅使用 silero-vad（即 `vad.provider` 设为 `silero_vad`），可直接遵循 MIT 许可证。
+
+请根据实际使用的 VAD 类型，遵守相应的开源协议。
 
 ## 🙏 致谢
 - [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) - 核心语音识别引擎
