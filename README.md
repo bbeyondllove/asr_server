@@ -121,7 +121,7 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 | 参数 | 说明 | 推荐值 |
 |------|------|--------|
 | `vad.provider` | VAD类型（silero_vad 或 ten_vad） | ten_vad |
-| `vad.pool_size` | VAD池实例数 | 2/200 |
+| `vad.pool_size` | VAD池实例数 | 200 |
 | `vad.threshold` | VAD检测阈值 | 0.5 |
 | `vad.silero_vad.min_silence_duration` | silero_vad: 最小静音时长 | 0.1 |
 | `vad.silero_vad.min_speech_duration` | silero_vad: 最小语音时长 | 0.25 |
