@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"asr_server/internal/logger"
 
 	sherpa "github.com/k2-fsa/sherpa-onnx-go/sherpa_onnx"
 )
@@ -75,7 +76,7 @@ func NewManager(config *Config) (*Manager, error) {
 
 	// 获取特征维度
 	dim := extractor.Dim()
-	log.Printf("Speaker embedding dimension: %d", dim)
+	logger.Infof("Speaker embedding dimension: %d", dim)
 
 	// 创建声纹管理器
 	embeddingManager := sherpa.NewSpeakerEmbeddingManager(dim)
@@ -95,7 +96,7 @@ func NewManager(config *Config) (*Manager, error) {
 
 	// 加载现有数据库
 	if err := manager.loadDatabase(); err != nil {
-		log.Printf("Warning: failed to load existing database: %v", err)
+		logger.Infof("Warning: failed to load existing database: %v", err)
 		manager.database = &SpeakerDatabase{
 			Speakers:  make(map[string]*SpeakerData),
 			Version:   "1.0.0",
@@ -105,7 +106,7 @@ func NewManager(config *Config) (*Manager, error) {
 
 	// 将数据库中的声纹加载到内存管理器
 	if err := manager.loadSpeakersToMemory(); err != nil {
-		log.Printf("Warning: failed to load speakers to memory: %v", err)
+		logger.Infof("Warning: failed to load speakers to memory: %v", err)
 	}
 
 	return manager, nil
@@ -167,7 +168,7 @@ func (m *Manager) loadSpeakersToMemory() error {
 			// 注册多个嵌入向量
 			success := m.manager.RegisterV(speakerID, speakerData.Embeddings)
 			if !success {
-				log.Printf("Warning: failed to register speaker %s to memory", speakerID)
+				logger.Infof("Warning: failed to register speaker %s to memory", speakerID)
 			} else {
 				loadedCount++
 				totalEmbeddings += len(speakerData.Embeddings)
@@ -175,7 +176,7 @@ func (m *Manager) loadSpeakersToMemory() error {
 		}
 	}
 
-	log.Printf("✅ Loaded %d speakers with %d total embeddings to memory for fast recognition",
+	logger.Infof("✅ Loaded %d speakers with %d total embeddings to memory for fast recognition",
 		loadedCount, totalEmbeddings)
 	return nil
 }
@@ -288,7 +289,7 @@ func (m *Manager) RegisterSpeaker(speakerID, speakerName string, audioData []flo
 		return fmt.Errorf("failed to save database: %v", err)
 	}
 
-	log.Printf("Successfully registered speaker %s (%s) with %d samples",
+	logger.Infof("Successfully registered speaker %s (%s) with %d samples",
 		speakerID, speakerName, speakerData.SampleCount)
 	return nil
 }
@@ -404,7 +405,7 @@ func (m *Manager) DeleteSpeaker(speakerID string) error {
 		return fmt.Errorf("failed to save database: %v", err)
 	}
 
-	log.Printf("Successfully deleted speaker %s", speakerID)
+	logger.Infof("Successfully deleted speaker %s", speakerID)
 	return nil
 }
 

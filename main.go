@@ -19,7 +19,7 @@ func main() {
 
 	// 加载配置
 	if err := config.InitConfig("config.json"); err != nil {
-		logger.Error("Failed to load configuration", err)
+		logger.Errorf("Failed to load configuration:%v", err)
 		os.Exit(1)
 	}
 
@@ -34,13 +34,13 @@ func main() {
 		MaxAge:     config.GlobalConfig.Logging.MaxAge,
 		Compress:   config.GlobalConfig.Logging.Compress,
 	})
-	logger.Info("✅ Configuration loaded")
+	logger.Infof("✅ Configuration loaded")
 	config.PrintConfig()
 
 	// 初始化所有依赖
 	deps, err := bootstrap.InitApp(&config.GlobalConfig)
 	if err != nil {
-		logger.Error("Failed to initialize app dependencies", err)
+		logger.Errorf("Failed to initialize app dependencies:%v", err)
 		os.Exit(1)
 	}
 
@@ -59,23 +59,23 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-quit
-		logger.Info("🛑 Shutting down server...")
+		logger.Infof("🛑 Shutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error("Server forced to shutdown", err)
+			logger.Errorf("Server forced to shutdown:%v", err)
 		}
-		logger.Info("✅ Server shutdown complete")
+		logger.Infof("✅ Server shutdown complete")
 	}()
 
-	logger.Info(fmt.Sprintf("🌐 Listening on %s:%d", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port))
-	logger.Info(fmt.Sprintf("🔗 WebSocket: ws://%s:%d/ws", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port))
-	logger.Info(fmt.Sprintf("📊 Health check: http://%s:%d/health", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port))
-	logger.Info(fmt.Sprintf("📈 Statistics: http://%s:%d/stats", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port))
-	logger.Info(fmt.Sprintf("🧪 Test page: http://%s:%d/", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port))
+	logger.Infof("🌐 Listening on %s:%d", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port)
+	logger.Infof("🔗 WebSocket: ws://%s:%d/ws", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port)
+	logger.Infof("📊 Health check: http://%s:%d/health", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port)
+	logger.Infof("📈 Statistics: http://%s:%d/stats", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port)
+	logger.Infof("🧪 Test page: http://%s:%d/", config.GlobalConfig.Server.Host, config.GlobalConfig.Server.Port)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("Server error", err)
+		logger.Errorf("Server error:%v", err)
 		os.Exit(1)
 	}
 }

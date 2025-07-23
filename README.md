@@ -39,31 +39,34 @@ docker run -d -p 8080:8080 --name asr_server asr_server
 - Linux/macOS/Windows
 - 内存建议4GB+
 
-#### 安装依赖
+#### 安装与依赖准备
 ```bash
 # 克隆项目
 git clone https://github.com/bbeyondllove/asr_server.git
 cd asr_server
 # 安装Go依赖
 go mod tidy
+# 复制动态库到系统库目录（Linux）
+cp lib/*.so /usr/lib/
+cp lib/ten-vad/lib/Linux/x64/libten_vad.so /usr/lib/
+# 安装C++运行时依赖（如未安装）
+sudo apt install libc++1
 ```
 
-#### 依赖库准备
-
-- **主程序依赖的动态库**（如 libonnxruntime.so/libsherpa-onnx-c-api.so）linux动态库已放在项目根目录下的 lib 目录，windows动态库需自行下载。
-
 #### 模型准备
+```bash
+sudo apt install git-lfs
+git-lfs install
+# 下载ASR模型
+mkdir -p models/asr
+# 推荐使用huggingface镜像加速
+git clone https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17 models/asr/
 
-**ASR模型：**
-- **SenseVoice多语种模型**：支持中/英/日/韩/粤等多语种识别，适合大多数通用场景。
-  - 下载链接：[sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17)
-  - 存放路径：`models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/`
-
-**声纹识别模型：**
-- **3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx**：支持多语种声纹识别。
-  - 下载链接：[3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx](https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx)
-  - 存放路径：`models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx`
-
+# 下载声纹识别模型
+mkdir -p models/speaker
+wget -O models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx \
+  https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx
+```
 
 #### 运行服务
 ```bash

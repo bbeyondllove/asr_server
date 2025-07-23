@@ -87,7 +87,7 @@ func (i *SileroVADInstance) Destroy() error {
 	if i.VAD != nil {
 		sherpa.DeleteVoiceActivityDetector(i.VAD)
 		i.VAD = nil
-		logger.Info("🗑️ Silero VAD instance destroyed")
+		logger.Infof("🗑️ Silero VAD instance destroyed")
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func NewSileroVADPool(config *SileroVADConfig) *SileroVADPool {
 
 // Initialize 并行初始化VAD池
 func (p *SileroVADPool) Initialize() error {
-	logger.Info("🔧 Initializing Silero VAD pool with %d instances...", p.config.PoolSize)
+	logger.Infof("🔧 Initializing Silero VAD pool with %d instances...", p.config.PoolSize)
 
 	// 并行初始化VAD实例
 	var initWg sync.WaitGroup
@@ -159,7 +159,7 @@ func (p *SileroVADPool) Initialize() error {
 			select {
 			case p.available <- instance:
 				atomic.AddInt64(&p.totalCreated, 1)
-				logger.Info(fmt.Sprintf("✅ Silero VAD instance %d initialized", instanceID))
+				logger.Infof("✅ Silero VAD instance %d initialized", instanceID)
 			default:
 				// 队列满，销毁实例
 				sherpa.DeleteVoiceActivityDetector(vad)
@@ -176,12 +176,12 @@ func (p *SileroVADPool) Initialize() error {
 	for err := range errorChan {
 		if err != nil {
 			initErrors = append(initErrors, err)
-			logger.Warn(fmt.Sprintf("⚠️ Silero VAD initialization warning: %v", err))
+			logger.Warnf("⚠️ Silero VAD initialization warning: %v", err)
 		}
 	}
 
 	successCount := len(p.instances)
-	logger.Info(fmt.Sprintf("🚀 Silero VAD pool initialized with %d/%d instances", successCount, p.config.PoolSize))
+	logger.Infof("🚀 Silero VAD pool initialized with %d/%d instances", successCount, p.config.PoolSize)
 
 	if len(initErrors) > 0 && successCount == 0 {
 		return fmt.Errorf("failed to initialize any Silero VAD instances")
@@ -192,20 +192,20 @@ func (p *SileroVADPool) Initialize() error {
 
 // Get 获取VAD实例
 func (p *SileroVADPool) Get() (VADInstanceInterface, error) {
-	logger.Info("🔍 Attempting to get Silero VAD instance from pool (available: %d)", len(p.available))
+	logger.Infof("🔍 Attempting to get Silero VAD instance from pool (available: %d)", len(p.available))
 
 	select {
 	case instance := <-p.available:
-		logger.Info(fmt.Sprintf("🎯 Got Silero VAD instance %d from pool", instance.GetID()))
+		logger.Infof("🎯 Got Silero VAD instance %d from pool", instance.GetID())
 		if atomic.CompareAndSwapInt32(&instance.(*SileroVADInstance).InUse, 0, 1) {
 			instance.SetLastUsed(time.Now().UnixNano())
 			atomic.AddInt64(&p.totalReused, 1)
 			atomic.AddInt64(&p.totalActive, 1)
-			logger.Info(fmt.Sprintf("✅ Silero VAD instance %d marked as in-use (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive)))
+			logger.Infof("✅ Silero VAD instance %d marked as in-use (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive))
 			return instance, nil
 		}
 		// 实例已被使用，重新放回队列
-		logger.Warn(fmt.Sprintf("⚠️ Silero VAD instance %d already in use, returning to pool", instance.GetID()))
+		logger.Warnf("⚠️ Silero VAD instance %d already in use, returning to pool", instance.GetID())
 		select {
 		case p.available <- instance:
 		default:
@@ -213,10 +213,10 @@ func (p *SileroVADPool) Get() (VADInstanceInterface, error) {
 		return p.Get() // 递归重试
 	case <-time.After(100 * time.Millisecond):
 		// 超时，创建新实例
-		logger.Warn(fmt.Sprintf("⏰ Silero VAD pool timeout, creating new temporary instance"))
+		logger.Warnf("⏰ Silero VAD pool timeout, creating new temporary instance")
 		return p.createNewInstance()
 	case <-p.ctx.Done():
-		logger.Error(fmt.Sprintf("❌ Silero VAD pool is shutting down"))
+		logger.Errorf("❌ Silero VAD pool is shutting down")
 		return nil, fmt.Errorf("Silero VAD pool is shutting down")
 	}
 }
@@ -224,33 +224,33 @@ func (p *SileroVADPool) Get() (VADInstanceInterface, error) {
 // Put 归还VAD实例
 func (p *SileroVADPool) Put(instance VADInstanceInterface) {
 	if instance == nil {
-		logger.Warn(fmt.Sprintf("⚠️ Attempted to put nil Silero VAD instance"))
+		logger.Warnf("⚠️ Attempted to put nil Silero VAD instance")
 		return
 	}
 
-	logger.Info(fmt.Sprintf("🔄 Returning Silero VAD instance %d to pool", instance.GetID()))
+	logger.Infof("🔄 Returning Silero VAD instance %d to pool", instance.GetID())
 
 	if atomic.CompareAndSwapInt32(&instance.(*SileroVADInstance).InUse, 1, 0) {
 		instance.SetLastUsed(time.Now().UnixNano())
 		atomic.AddInt64(&p.totalActive, -1)
-		logger.Info(fmt.Sprintf("✅ Silero VAD instance %d marked as available (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive)))
+		logger.Infof("✅ Silero VAD instance %d marked as available (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive))
 
 		// 重置VAD状态
 		if err := instance.Reset(); err != nil {
-			logger.Warn(fmt.Sprintf("⚠️ Failed to reset Silero VAD instance %d: %v", instance.GetID(), err))
+			logger.Warnf("⚠️ Failed to reset Silero VAD instance %d: %v", instance.GetID(), err)
 		}
 
 		select {
 		case p.available <- instance:
 			// 成功归还
-			logger.Info(fmt.Sprintf("✅ Silero VAD instance %d returned to pool (available: %d)", instance.GetID(), len(p.available)))
+			logger.Infof("✅ Silero VAD instance %d returned to pool (available: %d)", instance.GetID(), len(p.available))
 		default:
 			// 队列满，销毁实例
-			logger.Warn(fmt.Sprintf("⚠️ Silero VAD pool queue full, destroying instance %d", instance.GetID()))
+			logger.Warnf("⚠️ Silero VAD pool queue full, destroying instance %d", instance.GetID())
 			instance.Destroy()
 		}
 	} else {
-		logger.Warn(fmt.Sprintf("⚠️ Silero VAD instance %d was not in use, cannot return", instance.GetID()))
+		logger.Warnf("⚠️ Silero VAD instance %d was not in use, cannot return", instance.GetID())
 	}
 }
 
@@ -271,7 +271,7 @@ func (p *SileroVADPool) createNewInstance() (VADInstanceInterface, error) {
 	atomic.AddInt64(&p.totalCreated, 1)
 	atomic.AddInt64(&p.totalActive, 1)
 
-	logger.Info(fmt.Sprintf("🆕 Created temporary Silero VAD instance"))
+	logger.Infof("🆕 Created temporary Silero VAD instance")
 	return instance, nil
 }
 
@@ -294,7 +294,7 @@ func (p *SileroVADPool) GetStats() map[string]interface{} {
 
 // Shutdown 关闭VAD池
 func (p *SileroVADPool) Shutdown() {
-	logger.Info("🛑 Shutting down Silero VAD pool...")
+	logger.Infof("🛑 Shutting down Silero VAD pool...")
 
 	// 取消上下文
 	p.cancel()
@@ -322,5 +322,5 @@ cleanup_instances:
 	p.instances = nil
 	close(p.available)
 
-	logger.Info("✅ Silero VAD pool shutdown complete")
+	logger.Infof("✅ Silero VAD pool shutdown complete")
 }

@@ -1,5 +1,5 @@
 models/asr
-models/spearker
+models/speaker
 logs
 data
 .vscode

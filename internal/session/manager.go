@@ -147,7 +147,7 @@ func (m *Manager) RemoveSession(sessionID string) {
 		m.closeSession(session)
 		delete(m.sessions, sessionID)
 		atomic.AddInt64(&m.activeSessions, -1)
-		logger.Info("🗑️  Session removed")
+		logger.Infof("🗑️  Session removed")
 	}
 }
 
@@ -155,7 +155,7 @@ func (m *Manager) RemoveSession(sessionID string) {
 func (s *Session) sendLoop() {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("❌ Send loop panicked for session %s: %v", s.ID, r)
+			logger.Errorf("❌ Send loop panicked for session %s: %v", s.ID, r)
 		}
 	}()
 
@@ -169,10 +169,10 @@ func (s *Session) sendLoop() {
 			// 直接写消息，不再设置写超时
 			if err := s.Conn.WriteJSON(msg); err != nil {
 				atomic.AddInt32(&s.sendErrCount, 1)
-				logger.Error("Failed to send message to session %s: %v", s.ID, err)
+				logger.Errorf("Failed to send message to session %s: %v", s.ID, err)
 				// 如果连续错误超过阈值，关闭会话
 				if atomic.LoadInt32(&s.sendErrCount) > int32(config.GlobalConfig.Session.MaxSendErrors) {
-					logger.Error("Too many send errors for session, closing")
+					logger.Errorf("Too many send errors for session, closing")
 					atomic.StoreInt32(&s.closed, 1)
 					return
 				}
@@ -189,12 +189,12 @@ func (s *Session) sendLoop() {
 func (m *Manager) ProcessAudioData(sessionID string, audioData []byte) error {
 	session, exists := m.GetSession(sessionID)
 	if !exists {
-		logger.Error("Session %s not found when processing audio data", sessionID)
+		logger.Errorf("Session %s not found when processing audio data", sessionID)
 		return fmt.Errorf("session %s not found", sessionID)
 	}
 
 	if atomic.LoadInt32(&session.closed) == 1 {
-		logger.Error("Session %s is closed, cannot process audio data", sessionID)
+		logger.Errorf("Session %s is closed, cannot process audio data", sessionID)
 		return fmt.Errorf("session %s is closed", sessionID)
 	}
 
@@ -202,11 +202,11 @@ func (m *Manager) ProcessAudioData(sessionID string, audioData []byte) error {
 	if session.VADInstance == nil {
 		vadInstance, err := m.vadPool.Get()
 		if err != nil {
-			logger.Error("Failed to get VAD instance for session %s: %v", sessionID, err)
+			logger.Errorf("Failed to get VAD instance for session %s: %v", sessionID, err)
 			return fmt.Errorf("failed to get VAD instance for session %s: %v", sessionID, err)
 		}
 		session.VADInstance = vadInstance
-		logger.Info(fmt.Sprintf("✅ Session %s assigned %s VAD instance %d", sessionID, vadInstance.GetType(), vadInstance.GetID()))
+		logger.Infof("✅ Session %s assigned %s VAD instance %d", sessionID, vadInstance.GetType(), vadInstance.GetID())
 	}
 
 	// 更新会话活跃时间
@@ -215,12 +215,12 @@ func (m *Manager) ProcessAudioData(sessionID string, audioData []byte) error {
 
 	// 验证输入数据
 	if len(audioData) == 0 {
-		logger.Warn("Session %s: Received empty audio data", sessionID)
+		logger.Warnf("Session %s: Received empty audio data", sessionID)
 		return fmt.Errorf("empty audio data")
 	}
 
 	if len(audioData)%2 != 0 {
-		logger.Warn("Session %s: Audio data length %d is not even (expecting 16-bit samples)", sessionID, len(audioData))
+		logger.Warnf("Session %s: Audio data length %d is not even (expecting 16-bit samples)", sessionID, len(audioData))
 		return fmt.Errorf("invalid audio data length: %d", len(audioData))
 	}
 
@@ -244,7 +244,7 @@ func (m *Manager) ProcessAudioData(sessionID string, audioData []byte) error {
 		float32Slice[i] = float32(sample) / normalizeFactor
 	}
 
-	logger.Debug("Session %s: Converted %d bytes to %d float32 samples", sessionID, len(audioData), numSamples)
+	logger.Debugf("Session %s: Converted %d bytes to %d float32 samples", sessionID, len(audioData), numSamples)
 
 	// 根据VAD类型处理
 	switch session.VADInstance.GetType() {
@@ -282,7 +282,7 @@ func (m *Manager) processSileroVAD(session *Session, sessionID string, float32Sl
 	case <-vadDone:
 		// VAD处理完成
 	case <-vadCtx.Done():
-		logger.Warn("Session %s: VAD processing timeout", sessionID)
+		logger.Warnf("Session %s: VAD processing timeout", sessionID)
 		return fmt.Errorf("VAD processing timeout")
 	}
 
@@ -300,13 +300,13 @@ func (m *Manager) processSileroVAD(session *Session, sessionID string, float32Sl
 		if segment != nil && len(segment.Samples) > 0 {
 			// 再次检查会话状态
 			if atomic.LoadInt32(&session.closed) == 1 {
-				logger.Warn("Session %s closed during speech segment processing", sessionID)
+				logger.Warnf("Session %s closed during speech segment processing", sessionID)
 				return fmt.Errorf("session %s closed during processing", sessionID)
 			}
 
 			// 验证音频数据
 			if len(segment.Samples) == 0 {
-				logger.Warn("Session %s: Speech segment %d has no samples", sessionID, segmentCount)
+				logger.Warnf("Session %s: Speech segment %d has no samples", sessionID, segmentCount)
 				continue
 			}
 
@@ -314,22 +314,22 @@ func (m *Manager) processSileroVAD(session *Session, sessionID string, float32Sl
 			duration := float64(len(segment.Samples)) / float64(sampleRate)
 			minSpeechDuration := float64(config.GlobalConfig.VAD.SileroVAD.MinSpeechDuration)
 			if duration < minSpeechDuration {
-				logger.Debug("Session %s: Skipping short segment %d (%.2fs < %.2fs)", sessionID, segmentCount, duration, minSpeechDuration)
+				logger.Debugf("Session %s: Skipping short segment %d (%.2fs < %.2fs)", sessionID, segmentCount, duration, minSpeechDuration)
 				continue
 			}
 
 			// 检查最大时长
 			maxDuration := float64(config.GlobalConfig.VAD.SileroVAD.MaxSpeechDuration)
 			if duration > maxDuration {
-				logger.Warn("Session %s: Segment %d too long (%.2fs > %.2fs), truncating", sessionID, segmentCount, duration, maxDuration)
+				logger.Warnf("Session %s: Segment %d too long (%.2fs > %.2fs), truncating", sessionID, segmentCount, duration, maxDuration)
 				maxSamples := int(maxDuration * float64(sampleRate))
 				segment.Samples = segment.Samples[:maxSamples]
 			}
 
 			speechSegments = append(speechSegments, segment.Samples)
-			logger.Debug("Session %s: Collected segment %d with %d samples (%.2fs)", sessionID, segmentCount, len(segment.Samples), duration)
+			logger.Debugf("Session %s: Collected segment %d with %d samples (%.2fs)", sessionID, segmentCount, len(segment.Samples), duration)
 		} else {
-			logger.Warn("Session %s: Empty or null speech segment %d", sessionID, segmentCount)
+			logger.Warnf("Session %s: Empty or null speech segment %d", sessionID, segmentCount)
 		}
 	}
 
@@ -384,7 +384,7 @@ func (m *Manager) processTenVAD(session *Session, sessionID string, float32Slice
 
 		if flag == 1 {
 			if !session.isInSpeech {
-				logger.Debug("Session %s: Speech started", sessionID)
+				logger.Debugf("Session %s: Speech started", sessionID)
 				session.isInSpeech = true
 				session.currentSegment = make([]float32, 0)
 				session.silenceFrameCount = 0
@@ -398,9 +398,9 @@ func (m *Manager) processTenVAD(session *Session, sessionID string, float32Slice
 				if session.silenceFrameCount >= maxSilenceFrames {
 					frameCount := len(session.currentSegment) / hopSize
 					if frameCount >= minSpeechFrames {
-						logger.Debug("Session %s: Speech segment completed with %d samples (%d frames)", sessionID, len(session.currentSegment), frameCount)
+						logger.Debugf("Session %s: Speech segment completed with %d samples (%d frames)", sessionID, len(session.currentSegment), frameCount)
 						duration := float64(len(session.currentSegment)) / float64(config.GlobalConfig.Audio.SampleRate)
-						logger.Info(fmt.Sprintf("ASR segment length: %.2fs, samples: %d", duration, len(session.currentSegment)))
+						logger.Infof("ASR segment length: %.2fs, samples: %d", duration, len(session.currentSegment))
 						taskID := fmt.Sprintf("%s_%d", sessionID, time.Now().UnixNano())
 						segmentCopy := make([]float32, len(session.currentSegment))
 						copy(segmentCopy, session.currentSegment)
@@ -417,7 +417,7 @@ func (m *Manager) processTenVAD(session *Session, sessionID string, float32Slice
 							}
 						}(segmentCopy, sessionID, taskID)
 					} else {
-						logger.Debug("Session %s: Speech segment too short (%d frames), discarding", sessionID, frameCount)
+						logger.Debugf("Session %s: Speech segment too short (%d frames), discarding", sessionID, frameCount)
 					}
 					session.isInSpeech = false
 					session.silenceFrameCount = 0
@@ -434,13 +434,13 @@ func (m *Manager) processTenVAD(session *Session, sessionID string, float32Slice
 func (m *Manager) handleRecognitionResult(sessionID, result string, err error) {
 	session, exists := m.GetSession(sessionID)
 	if !exists {
-		logger.Warn("Session %s not found when handling recognition result, session may have been closed", sessionID)
+		logger.Warnf("Session %s not found when handling recognition result, session may have been closed", sessionID)
 		return
 	}
 
 	// 检查会话是否已关闭
 	if atomic.LoadInt32(&session.closed) == 1 {
-		logger.Warn("Session %s is closed when handling recognition result", sessionID)
+		logger.Warnf("Session %s is closed when handling recognition result", sessionID)
 		return
 	}
 
@@ -453,16 +453,16 @@ func (m *Manager) handleRecognitionResult(sessionID, result string, err error) {
 		}
 		select {
 		case session.SendQueue <- response:
-			logger.Info(fmt.Sprintf("Recognition result queued for session %s: %s", sessionID, result))
+			logger.Infof("Recognition result queued for session %s: %s", sessionID, result)
 		default:
-			logger.Warn("Session %s send queue is full, dropping recognition result", sessionID)
+			logger.Warnf("Session %s send queue is full, dropping recognition result", sessionID)
 		}
 		return
 	}
 
 	// 有错误时记录日志，但不返回给用户
 	if err != nil {
-		logger.Error("Recognition error for session %s: %v", sessionID, err)
+		logger.Errorf("Recognition error for session %s: %v", sessionID, err)
 	}
 	// 其他情况（如识别失败、错误或结果为空）不返回任何内容
 }
@@ -481,7 +481,7 @@ func (m *Manager) closeSession(session *Session) {
 		if session.VADInstance != nil && m.vadPool != nil {
 			m.vadPool.Put(session.VADInstance)
 			session.VADInstance = nil
-			logger.Info("🔄 Returned VAD instance to pool for session %s", session.ID)
+			logger.Infof("🔄 Returned VAD instance to pool for session %s", session.ID)
 		}
 
 		if session.Conn != nil {
@@ -514,7 +514,7 @@ func (m *Manager) GetStats() map[string]interface{} {
 
 // Shutdown 关闭管理器
 func (m *Manager) Shutdown() {
-	logger.Info("🛑 Shutting down session manager...")
+	logger.Infof("🛑 Shutting down session manager...")
 
 	// 取消上下文
 	m.cancel()
@@ -522,11 +522,11 @@ func (m *Manager) Shutdown() {
 	// 关闭所有会话
 	m.mu.Lock()
 	for sessionID, session := range m.sessions {
-		logger.Info("🛑 Closing session: %s", sessionID)
+		logger.Infof("🛑 Closing session: %s", sessionID)
 		m.closeSession(session)
 	}
 	m.sessions = make(map[string]*Session)
 	m.mu.Unlock()
 
-	logger.Info("✅ Session manager shutdown complete")
+	logger.Infof("✅ Session manager shutdown complete")
 }

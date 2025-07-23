@@ -78,7 +78,7 @@ func (i *TenVADInstance) Destroy() error {
 		tenVAD := GetInstance()
 		tenVAD.DestroyInstance(i.Handle)
 		i.Handle = nil
-		logger.Info(fmt.Sprintf("🗑️ TEN-VAD instance %d destroyed", i.ID))
+		logger.Infof("🗑️ TEN-VAD instance %d destroyed", i.ID)
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func NewTenVADPool(config *TenVADConfig) *TenVADPool {
 
 // Initialize 并行初始化VAD池
 func (p *TenVADPool) Initialize() error {
-	logger.Info(fmt.Sprintf("🔧 Initializing TEN-VAD pool with %d instances...", p.config.PoolSize))
+	logger.Infof("🔧 Initializing TEN-VAD pool with %d instances...", p.config.PoolSize)
 
 	// 并行初始化VAD实例
 	var initWg sync.WaitGroup
@@ -151,7 +151,7 @@ func (p *TenVADPool) Initialize() error {
 			select {
 			case p.available <- instance:
 				atomic.AddInt64(&p.totalCreated, 1)
-				logger.Info(fmt.Sprintf("✅ TEN-VAD instance %d initialized", instanceID))
+				logger.Infof("✅ TEN-VAD instance %d initialized", instanceID)
 			default:
 				// 队列满，销毁实例
 				tenVAD.DestroyInstance(handle)
@@ -168,12 +168,12 @@ func (p *TenVADPool) Initialize() error {
 	for err := range errorChan {
 		if err != nil {
 			initErrors = append(initErrors, err)
-			logger.Warn("⚠️ TEN-VAD initialization warning: %v", err)
+			logger.Warnf("⚠️ TEN-VAD initialization warning: %v", err)
 		}
 	}
 
 	successCount := len(p.instances)
-	logger.Info(fmt.Sprintf("🚀 TEN-VAD pool initialized with %d/%d instances", successCount, p.config.PoolSize))
+	logger.Infof("🚀 TEN-VAD pool initialized with %d/%d instances", successCount, p.config.PoolSize)
 
 	if len(initErrors) > 0 && successCount == 0 {
 		return fmt.Errorf("failed to initialize any TEN-VAD instances")
@@ -184,20 +184,20 @@ func (p *TenVADPool) Initialize() error {
 
 // Get 获取VAD实例
 func (p *TenVADPool) Get() (VADInstanceInterface, error) {
-	logger.Info(fmt.Sprintf("🔍 Attempting to get TEN-VAD instance from pool (available: %d)", len(p.available)))
+	logger.Infof("🔍 Attempting to get TEN-VAD instance from pool (available: %d)", len(p.available))
 
 	select {
 	case instance := <-p.available:
-		logger.Info(fmt.Sprintf("🎯 Got TEN-VAD instance %d from pool", instance.GetID()))
+		logger.Infof("🎯 Got TEN-VAD instance %d from pool", instance.GetID())
 		if atomic.CompareAndSwapInt32(&instance.(*TenVADInstance).InUse, 0, 1) {
 			instance.SetLastUsed(time.Now().UnixNano())
 			atomic.AddInt64(&p.totalReused, 1)
 			atomic.AddInt64(&p.totalActive, 1)
-			logger.Info(fmt.Sprintf("✅ TEN-VAD instance %d marked as in-use (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive)))
+			logger.Infof("✅ TEN-VAD instance %d marked as in-use (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive))
 			return instance, nil
 		}
 		// 实例已被使用，重新放回队列
-		logger.Warn(fmt.Sprintf("⚠️ TEN-VAD instance %d already in use, returning to pool", instance.GetID()))
+		logger.Warnf("⚠️ TEN-VAD instance %d already in use, returning to pool", instance.GetID())
 		select {
 		case p.available <- instance:
 		default:
@@ -205,7 +205,7 @@ func (p *TenVADPool) Get() (VADInstanceInterface, error) {
 		return p.Get() // 递归重试
 	case <-time.After(100 * time.Millisecond):
 		// 超时，创建新实例
-		logger.Warn("⏰ TEN-VAD pool timeout, creating new temporary instance")
+		logger.Warnf("⏰ TEN-VAD pool timeout, creating new temporary instance")
 		return p.createNewInstance()
 	case <-p.ctx.Done():
 		logger.Error("❌ TEN-VAD pool is shutting down")
@@ -216,33 +216,33 @@ func (p *TenVADPool) Get() (VADInstanceInterface, error) {
 // Put 归还VAD实例
 func (p *TenVADPool) Put(instance VADInstanceInterface) {
 	if instance == nil {
-		logger.Warn("⚠️ Attempted to put nil TEN-VAD instance")
+		logger.Warnf("⚠️ Attempted to put nil TEN-VAD instance")
 		return
 	}
 
-	logger.Info(fmt.Sprintf("🔄 Returning TEN-VAD instance %d to pool", instance.GetID()))
+	logger.Infof("🔄 Returning TEN-VAD instance %d to pool", instance.GetID())
 
 	if atomic.CompareAndSwapInt32(&instance.(*TenVADInstance).InUse, 1, 0) {
 		instance.SetLastUsed(time.Now().UnixNano())
 		atomic.AddInt64(&p.totalActive, -1)
-		logger.Info(fmt.Sprintf("✅ TEN-VAD instance %d marked as available (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive)))
+		logger.Infof("✅ TEN-VAD instance %d marked as available (active: %d)", instance.GetID(), atomic.LoadInt64(&p.totalActive))
 
 		// 重置VAD状态
 		if err := instance.Reset(); err != nil {
-			logger.Warn(fmt.Sprintf("⚠️ Failed to reset TEN-VAD instance %d: %v", instance.GetID(), err))
+			logger.Warnf("⚠️ Failed to reset TEN-VAD instance %d: %v", instance.GetID(), err)
 		}
 
 		select {
 		case p.available <- instance:
 			// 成功归还
-			logger.Info(fmt.Sprintf("✅ TEN-VAD instance %d returned to pool (available: %d)", instance.GetID(), len(p.available)))
+			logger.Infof("✅ TEN-VAD instance %d returned to pool (available: %d)", instance.GetID(), len(p.available))
 		default:
 			// 队列满，销毁实例
-			logger.Warn(fmt.Sprintf("⚠️ TEN-VAD pool queue full, destroying instance %d", instance.GetID()))
+			logger.Warnf("⚠️ TEN-VAD pool queue full, destroying instance %d", instance.GetID())
 			instance.Destroy()
 		}
 	} else {
-		logger.Warn(fmt.Sprintf("⚠️ TEN-VAD instance %d was not in use, cannot return", instance.GetID()))
+		logger.Warnf("⚠️ TEN-VAD instance %d was not in use, cannot return", instance.GetID())
 	}
 }
 
@@ -264,7 +264,7 @@ func (p *TenVADPool) createNewInstance() (VADInstanceInterface, error) {
 	atomic.AddInt64(&p.totalCreated, 1)
 	atomic.AddInt64(&p.totalActive, 1)
 
-	logger.Info("🆕 Created temporary TEN-VAD instance")
+	logger.Infof("🆕 Created temporary TEN-VAD instance")
 	return instance, nil
 }
 
@@ -287,7 +287,7 @@ func (p *TenVADPool) GetStats() map[string]interface{} {
 
 // Shutdown 关闭VAD池
 func (p *TenVADPool) Shutdown() {
-	logger.Info("🛑 Shutting down TEN-VAD pool...")
+	logger.Infof("🛑 Shutting down TEN-VAD pool...")
 
 	// 取消上下文
 	p.cancel()
@@ -315,5 +315,5 @@ cleanup_instances:
 	p.instances = nil
 	close(p.available)
 
-	logger.Info("✅ TEN-VAD pool shutdown complete")
+	logger.Infof("✅ TEN-VAD pool shutdown complete")
 }
