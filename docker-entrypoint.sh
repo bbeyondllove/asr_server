@@ -60,7 +60,7 @@ print(f'Model downloaded to: {model_dir}')
         echo "Downloading 3DSpeaker model..."
         python3 -c "
 from modelscope import snapshot_download
-model_dir = snapshot_download('yeyang1/3dspeaker_speech_campplus_sv_zh-cn_16k-common_advanced', cache_dir='/app/models_cache')
+model_dir = snapshot_download('fengge2024/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx', cache_dir='/app/models_cache')
 print(f'Speaker model downloaded to: {model_dir}')
 " || {
             echo "ERROR: Failed to download Speaker model"

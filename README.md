@@ -2,6 +2,8 @@
 
 基于 Sherpa-ONNX 的高性能语音识别服务，支持实时VAD（语音活动检测）、多语言识别和声纹识别。
 
+**支持模型：** SenseVoice和Fun-ASR-Nano
+
 ## ✨ 特性
 - 实时多语言语音识别（中/英/日/韩/粤等）
 - VAD智能分段，自动过滤静音
@@ -58,18 +60,35 @@ sudo apt install libc++1
 ```
 
 #### 模型准备
+
+本项目支持两种ASR模型，可根据需求选择：
+
 ```bash
-sudo apt install git-lfs
-git-lfs install
-# 下载ASR模型
-mkdir -p models/asr
-# 推荐使用huggingface镜像加速
-git clone https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17 models/asr/
+# 下载 SenseVoice 模型（多语言：中/英/日/韩/粤等）
+mkdir -p models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17
+git clone https://www.modelscope.cn/models/fengge2024/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.git models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17
+
+# 或下载 Fun-ASR-Nano 模型（8bit量化版）
+mkdir -p models/asr/Fun-ASR-Nano-2512-8bit
+git clone https://www.modelscope.cn/models/fengge2024/Fun-ASR-Nano-2512-8bit.git models/asr/Fun-ASR-Nano-2512-8bit
 
 # 下载声纹识别模型
 mkdir -p models/speaker
 wget -O models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx \
-  https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx
+  https://www.modelscope.cn/models/fengge2024/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx/resolve/master/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx
+```
+
+**模型选择建议：**
+- **SenseVoice**: 支持多语言（中/英/日/韩/粤）
+- **Fun-ASR-Nano-8bit**: 基于数千万小时真实语音数据训练的端到端语音识别大模型，支持低延迟实时转写，涵盖31种语言识别功能。8bit量化版体积小、速度快，适合资源受限环境
+
+**配置文件修改：**
+下载后需修改 `config.json` 中的模型路径：
+```json
+"recognition": {
+  "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.onnx",  // 或 SenseVoice 路径
+  "tokens_path": "models/asr/Fun-ASR-Nano-2512-8bit/tokens.txt"
+}
 ```
 
 #### 运行服务
@@ -82,9 +101,9 @@ go build -o asr_server
 ```
 
 #### 访问测试
-- 测试页面: http://localhost:8080/
-- 健康检查: http://localhost:8080/health
-- WebSocket: ws://localhost:8080/ws
+- 测试页面: http://localhost:6000/
+- 健康检查: http://localhost:6000/health
+- WebSocket: ws://localhost:6000/ws
 
 ---
 
@@ -93,7 +112,7 @@ go build -o asr_server
 
 ## 🔌 WebSocket API 示例
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/ws');
+const ws = new WebSocket('ws://localhost:6000/ws');
 ws.onopen = () => ws.send(audioBuffer);
 ws.onmessage = e => console.log('识别结果:', e.data);
 ```
@@ -140,7 +159,7 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 | `vad.ten_vad.max_silence_frames` | ten-vad: 最大静音帧数 | 5 |
 | `recognition.num_threads` | ASR线程数 | 8-16 |
 | `audio.sample_rate` | 采样率 | 16000 |
-| `server.port` | 服务端口 | 8080 |
+| `server.port` | 服务端口 | 6000 |
 
 ### VAD 配置示例
 ```jsonc
@@ -198,6 +217,7 @@ python stress_test.py --connections 100 --audio-per-connection 2
 ## 🙏 致谢
 - [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) - 核心语音识别引擎
 - [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 多语言语音识别模型
+- [Fun-ASR](https://github.com/alibaba-damo-academy/FunASR) - 轻量级中文语音识别模型
 - [Silero VAD](https://github.com/snakers4/silero-vad) - 语音活动检测模型
 - [ten-vad](https://github.com/zhenghuatan/ten-vad) - 高效端点检测算法
 
