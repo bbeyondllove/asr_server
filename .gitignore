@@ -3,3 +3,4 @@ models/speaker
 logs
 data
 .vscode
+.claude

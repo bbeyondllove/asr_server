@@ -7,8 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-audio/wav v1.1.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/k2-fsa/sherpa-onnx-go v1.12.4
-	github.com/sirupsen/logrus v1.9.3
+	github.com/k2-fsa/sherpa-onnx-go v1.12.20
 	github.com/spf13/viper v1.20.1
 	golang.org/x/time v0.12.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -29,9 +28,9 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/k2-fsa/sherpa-onnx-go-linux v1.12.4 // indirect
-	github.com/k2-fsa/sherpa-onnx-go-macos v1.12.4 // indirect
-	github.com/k2-fsa/sherpa-onnx-go-windows v1.12.4 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-linux v1.12.20 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-macos v1.12.20 // indirect
+	github.com/k2-fsa/sherpa-onnx-go-windows v1.12.20 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

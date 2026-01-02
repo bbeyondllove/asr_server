@@ -13,22 +13,26 @@
 
 ### 方式一：Docker 部署（推荐）
 
-> **推荐：Docker 镜像已自动包含主要模型文件（vad、asr、speaker）和 lib 目录，无需手动挂载 models 或 lib 目录。**
+使用 8-bit 量化模型，镜像体积小，首次运行时自动从 ModelScope 下载模型。
 
-#### 构建镜像
 ```bash
+# 构建镜像
 docker build -t asr_server .
+
+# 运行容器（VAD 模型已内置，ASR/Speaker 模型自动下载）
+docker run -d -p 6000:6000 --name asr_server asr_server
 ```
 
-#### 运行容器（假设端口 8080）
-```bash
-docker run -d -p 8080:8080 --name asr_server asr_server
-```
+**特点：**
+- 模型：Fun-ASR-Nano-2512-8bit（量化版）
+- 镜像体积：约 200MB
+- 首次启动：自动下载 ASR/Speaker 模型
+- 适用场景：快速部署、资源受限环境
 
 #### 端口与访问
-- 测试页面: http://localhost:8080/
-- 健康检查: http://localhost:8080/health
-- WebSocket: ws://localhost:8080/ws
+- 测试页面: http://localhost:6000/
+- 健康检查: http://localhost:6000/health
+- WebSocket: ws://localhost:6000/ws
 
 ---
 

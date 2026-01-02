@@ -1,6 +1,6 @@
 {
   "server": {
-    "port": 8080,
+    "port": 6000,
     "host": "0.0.0.0",
     "read_timeout": 20,
     "websocket": {
@@ -34,8 +34,8 @@
       }
   },
   "recognition": {
-    "model_path": "models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/model.int8.onnx",
-    "tokens_path": "models/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tokens.txt",
+    "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.onnx",
+    "tokens_path": "models/asr/Fun-ASR-Nano-2512-8bit/tokens.txt",
     "language": "auto",
     "use_inverse_text_normalization": false,
     "num_threads": 16,
