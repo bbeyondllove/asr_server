@@ -86,7 +86,7 @@ wget -O models/speaker/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.on
 下载后需修改 `config.json` 中的模型路径：
 ```json
 "recognition": {
-  "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.onnx",  // 或 SenseVoice 路径
+  "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.int8.onnx",  // 或 SenseVoice 路径
   "tokens_path": "models/asr/Fun-ASR-Nano-2512-8bit/tokens.txt"
 }
 ```

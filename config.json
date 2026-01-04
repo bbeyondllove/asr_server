@@ -34,7 +34,7 @@
       }
   },
   "recognition": {
-    "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.onnx",
+    "model_path": "models/asr/Fun-ASR-Nano-2512-8bit/model.int8.onnx",
     "tokens_path": "models/asr/Fun-ASR-Nano-2512-8bit/tokens.txt",
     "language": "auto",
     "use_inverse_text_normalization": false,
