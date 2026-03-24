@@ -4,3 +4,7 @@ logs
 data
 .vscode
 .claude
+./onnxruntime.dll
+./sherpa-onnx-c-api.dll
+./sherpa-onnx-cxx-api.dll
+./ten_vad.dll

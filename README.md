@@ -55,6 +55,11 @@ go mod tidy
 # 复制动态库到系统库目录（Linux）
 cp lib/*.so /usr/lib/
 cp lib/ten-vad/lib/Linux/x64/libten_vad.so /usr/lib/
+# 复制动态库到项目根目录（Windows PowerShell）
+Copy-Item win_lib\*.dll -Destination .
+# windows需要将sherpa_onnx下的onnxruntime.dll,sherpa-onnx-c-api.dll,sherpa-onnx-cxx-api.dll存放在项目根目录，否则程序运行找不到对应的dll
+#windows需要启动cgo 可使用go env查看CGO_ENABLED
+go env -w CGO_ENABLED=1
 # 安装C++运行时依赖（如未安装）
 sudo apt install libc++1
 ```
@@ -98,6 +103,7 @@ go run main.go
 # 或编译后运行
 go build -o asr_server
 ./asr_server
+#windows新增run.bat与run.ps1代替go run main.go,因为程序在临时目录下运行时，Windows 加载 DLL 时会优先从可执行文件所在的目录寻找。因为它找不到你项目根目录下的DLL，可能会去系统目录（如 System32）下找，如果碰巧找到了不兼容的架构版本，就会报 0xc000007b 错误。
 ```
 
 #### 访问测试
@@ -142,7 +148,7 @@ ws.onmessage = e => console.log('识别结果:', e.data);
 │  └──────────────┘  │    │  └──────────────┘    │
 └────────────────────┘    └──────────────────────┘
 ```
- 
+
 ## 🎛️ 关键参数说明
 | 参数 | 说明 | 推荐值 |
 |------|------|--------|
